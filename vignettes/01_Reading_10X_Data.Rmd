@@ -1,0 +1,140 @@
+---
+title: "01 Reading and loading data into R using Seurat and Monocle3"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{One_Reading_10X_Data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+date: "2022-07-17"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## A primer on reading single-cell data from 10x using a combination of Seurat and Monocle3
+Both Seurat and Monocle3 are extremely powerful tools for single-cell data analysis. Each offers distinct features for a specific purpose.  Seurat's quality control checks, scaling, aligning, and clustering via `SCTransform` is extremely well known and trusted out-of-the-box.  However, it lacks dedicated support for quantitative analysis. Whereas Monocle3's contains these dedicated functions to carry out differential expression, trajectory, and pseudotime analysis, with the caveat that it's scaling, aligning, clustering are done a little different, providing a high degree of customization, but also higher understanding of the data, and analysis algorithms.  Reading the data into Seurat, and Monocle3 will facilitate the implementation and use of their analysis functions downstream, hence both will be covered.
+
+On this primer, we will use fibroblast data from [Solé-Boldo, et al.](https://doi.org/10.1038/s42003-020-0922-4), available under GEO accession [GSE130973](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE130973).  This dataset was chosen as it contains ~15,000 cells, under two treatments, whose analysis was performed using Seurat, and a re-analysis ready object was provided to check our work as we reproduce their analysis.
+
+Finally, we will make use of a specific collection of libraries and grammar known as the `tidyverse` to create simple workflows, and summaries of the data. Note that while `tidyverse` does not follow conventional R programming, it does however, simplify code and improves the legibility of the work which beneficial in our case.
+
+
+## Understanding 10X's default read count matrices
+There are two read count matrices provided by the `cellranger` pipiline from 10X.  These are the `raw_feature_bc_matrix` and `filtered_feature_bc_matrix`.  Both contain the same 3 files:
+
+* `features.tsv`: A file containing 2 or 3 columns with information pertaining to genes
+  `Feature ID`, `HGNC Symbol`, and optional `assay type` if antibody barcoding were used
+
+* `barcodes.tsv`: A file containing a single column, with rows containing nucleotide barcode for each cell
+
+* `matrix.mtx`: A file containing the read count matrix, where rows represent the features, and columns are cells.  The matrix is also under a space saving format commonly referred to as a `sparse matrix`.  However, this is handled out-of-the-box by both Seurat and Monocle3, thus wont be further discussed.
+
+```{r understanding_data}
+setwd("~/mskcc/singer/z_Collaborations/koff_training/")
+list.files(path = "data-raw/raw_feature_bc_matrix/")
+list.files(path = "data-raw/filtered_feature_bc_matrix")
+```
+These are usually in compressed form to save space.  A peek in side each file shows the following:
+
+```{r eval = TRUE}
+## features 
+read.delim("data-raw/filtered_feature_bc_matrix/features.tsv.gz", nrows = 10)
+
+## barcodes
+readLines("data-raw/filtered_feature_bc_matrix/barcodes.tsv.gz", n = 10)
+
+## sparse matrix 
+Matrix::readMM("data-raw/filtered_feature_bc_matrix/matrix.mtx.gz")[1:10, 1:10]
+```
+
+## Read in 10X data using Seurat
+
+1. first load the libraries
+```{r setup}
+library(Seurat)
+## load custom fuctions, if any
+devtools::load_all()
+```
+
+2. read in the filtered matrix.  Usually it's best to load the `filtered_feature_bc_matrix` as these have been pre-filtered by `cellranger` to contain the subset of droplets most likely to be cells.  If the number of cells does not match the expected number, one can re-analyze the `raw_feature_bc_matrix` to adjust the number of droplets, among other analyses.
+
+*Note:*  While we refer to this as the read count matrix; the data within the matrix is actually unique molecular identifier (UMI) counts.  A UMI, is a unique barcode that is attached to an oligo. With PCR enrichment, UMI will remain the same, and will essentially _tag_ a specific molecular sequence. In its simplest form, for example, if a gene is expressed at 100 copies, we would be counting 100 UMI, whereas if its expressed with 20 copies, we would be counting 20 UMI.
+
+* construction of the command line:
+
+`objectname <- function(arg1 = "text", arg2 = "text", arg3 = otherobject, ...)`
+
+`objectname`:  is the name to the object containing our data, text string, or function
+`"<-"`: is the assignment operator, can be substituted with `=` as well, albeit `<-` is prefered
+`function`:  the name of the function to be used
+`arg*`: argument one of the function.  By convention all text must be in double-quotes \" or single quote  \'
+
+* for long object names, one can opt to separate words with a `.`m or `_`, with ocasional use of cammelCaps.  Try to stay consistent
+
+```{r read_in_w_seurat}
+## if needed run: setwd("~/mskcc/singer/z_Collaborations/koff_training/")
+a.fibro <- Read10X(data.dir = "data-raw/filtered_feature_bc_matrix/")
+head(a.fibro)[,1:10]
+
+fibroS <- CreateSeuratObject(a.fibro, project = "Fibroblasts_Sole")
+fibroS
+```
+
+## Read-in 10X data with Monocle3
+1. Load the monocle3 library
+
+2. Read in matrix as before, however, monocle3 will directly create a `cell_data_set` or `cds` for short in one step
+
+```{r setup2, eval = FALSE}
+library(monocle3)
+
+fibroM <- load_cellranger_data("data-raw/filtered_feature_bc_matrix/")
+fibroM
+```
+
+## Saving the data
+
+There are multiple ways to save the data, however, in this tutorial we will use one `rda` file per object in a directory called `data/`.  To do this, we can simply construct the directory using `mkdir` or `usethis::use_directory`, then use `save(obj, file = obj.rda)`.  Alternatively, if the project is set up in a quasi R package format, we can also use `usethis::use_data`.   This approach is prefered as we can later use the function `data()` to re-load our data for downstream analysis and/or plotting.  
+
+```{r short_way, eval = FALSE}
+usethis::use_data(fibroS)
+## re-test once monocle is installed on my computer
+## usethis::use_data(fibroM)
+```
+
+## Differences between our `fibroS` object to the published dataset in Solé-boldo, et al. 
+
+Our dataset `fibroS` is quite bare, basically only contains the count matrix, and a brief summary of the total number of reads.  If we look closer, `fibroS` contains data from ```nrow(fibroS)``` features/genes, from ```ncol(fibroS)``` cells.  Whereas the published `soleS` data, contains ```nrow(soleS)```, features/genes from ```ncol(soleS)```.  These differences are the result of the data cleaning, which is aimed to remove noise from the data.  Data cleaning will be our next step.
+
+```{r our_data}
+fibroS
+
+## read count matrix
+fibroS@assays$RNA[1:10, 1:10]
+
+## meta data / information about each cell
+head(fibroS@meta.data)
+```
+
+```{r read_published_rds}
+soleS <- readRDS("data-raw/GSE130973_seurat_analysis_lyko.rds")
+soleS
+```
+
+Some exploratory differences:
+
+### Read Count Summary
+```{r}
+summary(soleS$nCount_RNA)
+summary(fibroS$nCount_RNA)
+```
+
+```{r}
+plot(density(fibroS$nCount_RNA), lwd = 3)
+lines(density(soleS$nCount_RNA), col = "red", lty = 3)
+legend("topright", legend = c("Ours", "Published"), lwd = 3 , col = c("black", "red"))
+```

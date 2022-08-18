@@ -1,0 +1,18 @@
+Package: rnaseq_training
+Title: single-cell data analysis
+Version: 0.0.0.9000
+Authors@R: 
+    person("Rodrigo", "Gularte Merida", , "gularter@mskcc.org", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-4383-2523"))
+Description: A collection of analysis vignettes/scripts to analyze single-cell RNA-seq data from 10X libraries implementing best practices
+License: BSD 3-Clause
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.2
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+Depends: 
+    R (>= 2.10)
+LazyData: true

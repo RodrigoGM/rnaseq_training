@@ -1,0 +1,17 @@
+---
+title: "02 Data Cleaning"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{One_Reading_10X_Data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+date: "2022-07-18"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+

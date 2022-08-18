@@ -1,0 +1,35 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# rnaseq_training
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+The goal of rnaseq_training is to provide a platform to initiate single-cell data analysis.
+
+
+## Package installation
+
+Install Seurat:
+
+``` r
+install.packages("Seurat", dependencies = TRUE)
+install.packages(c("tidyverse", "patchwork"), dependencies = TRUE)
+```
+
+Install Monocle3:
+Follow install instructions on the [monocle3 website](https://cole-trapnell-lab.github.io/monocle3/)
+
