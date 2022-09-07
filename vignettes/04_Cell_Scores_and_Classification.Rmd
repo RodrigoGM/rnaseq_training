@@ -1,0 +1,25 @@
+---
+title: "04_Cell_Scores_&_Classification"
+author: "Rodrigo Gularte Mérida"
+date: "9/6/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(Seurat)
+library(SeuratWrappers)
+library(patchwork)
+devtools::load_all()
+```
+
+```{r}
+data(fibroS)
+```
+
+```{r}
+
+```

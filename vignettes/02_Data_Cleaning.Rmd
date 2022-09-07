@@ -13,5 +13,133 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
+data(pre.fibroS, soleS)
+
 ```
+
+# Data cleaning and quality control
+
+The objective of the data cleaning and quality control is primarily to remove technology artifacts that may dampen biological signal. These include stressed cells, low-count, and doublets.  However, some biological signals may need to be removed as these are non-canonical to the experiment. 
+
+We start off by loading a previously created object using, and the published data set using the function `data`
+```{r setup, eval = TRUE}
+library(Seurat)
+library(tidyverse)
+devtools::load_all()
+
+## load data
+data(pre.fibroS, soleS)
+```
+
+The object currently contains `r nrow(pre.fibroS)` features and `r ncol(pre.fibroS)` cells.  Whereas the published object had a few less featuers and cells, `r nrow(soleS)`, and `r ncol(soleS)`, respectively. 
+
+## Percent Mitochondria
+A measure of stress in cells and sample handling
+
+```{r}
+## Percentage mitochondrial genes
+pre.fibroS <- PercentageFeatureSet(pre.fibroS, pattern = "^MT-", col.name = "percent_mt")
+## Percentage ribosomal genes
+pre.fibroS <- PercentageFeatureSet(pre.fibroS, pattern = "^RP[SL]", col.name = "percent_rb")
+## Percentage hemoglobin genes - includes all genes starting with HB except HBP.
+pre.fibroS <- PercentageFeatureSet(pre.fibroS, pattern = "^HB[^(P)]", col.name = "percent_hb")
+## Percentage platelet expression
+pre.fibroS <- PercentageFeatureSet(pre.fibroS, pattern = "PECAM1|PF4", col.name = "percent_plat")
+
+## plots
+features_of_interest <- c("nFeature_RNA", "nCount_RNA", "percent_mt", "percent_rb", "percent_hb", "percent_plat")
+
+VlnPlot(pre.fibroS, group.by = "subj", 
+        features = features_of_interest, pt.size = 0.1, ncol = 3) +
+  NoLegend()
+```
+
+## remove high mitochondria, and low ribosomal rna, and high hemoglobin cells
+
+```{r filter_bad_cells}
+## find limits for nFeature_RNA
+pre.fibroS[[]] %>%
+  ggplot(aes(x = log10(nFeature_RNA), fill = subj)) +
+  geom_density(alpha = 0.4) +
+  geom_vline(xintercept = c(2.5, 3.7), col = "gray", lty = 3)
+
+10^c(2.5, 3.7)
+
+## find limits for nCount_RNA
+pre.fibroS[[]] %>%
+  ggplot(aes(x = log10(nCount_RNA), fill = subj)) +
+  geom_density(alpha = 0.4) +
+  geom_vline(xintercept = c(2.8, 4.5), col = "gray", lty = 3)
+
+10^c(2.8, 4.5)
+
+## find limits for percent_mt
+pre.fibroS[[]] %>%
+  ggplot(aes(x = percent_mt, fill = subj)) +
+  geom_density(alpha = 0.4) +
+  geom_vline(xintercept = 5, col = "gray", lty = 3)
+
+
+fibroS1 <- pre.fibroS %>%
+  subset(nFeature_RNA > 316 & 
+           nFeature_RNA <= 5012 &
+           nCount_RNA > 630 &
+           nCount_RNA <= 31623 &
+           percent_mt <= 5 &
+           percent_hb <= 1 )
+
+fibroS1 %>% 
+  VlnPlot(group.by = "subj", 
+          features = features_of_interest, pt.size = 0.1, ncol = 3) +
+  NoLegend()
+
+```
+
+Now that we have a uniform set of cells, with relatively uniform quality metrics we can proceed with the analysis in the next vignette. and save the `fibroS1` object now containing `r ncol(fibroS1)` cells
+
+*NOTE*: In palbociclib treated cells we observe a high mitochondrial gene expression signal.  In that instance we chose not to remove it based on biological evidence.  That can be the case here as well.
+
+## removal lowly and unexpressed genes in the population
+In Sole et al, it appears a lot of genes were removed, primarily olfactory receptors, Ribosomal Proteins, pseudo- and non-coding genes.  Here we will filter out instead by low abundance, and unexpressed genes by using a cutoff of 10 cells, that's on average 2 cells per treatment group.  Note this filtering is not for genes with low abundance RNA signal, rather for genes not found in at least 10 cells. Meaning if all cells had at least 1 read, they would not be filtered.
+
+```{r}
+unexpressed.genes <- rowSums(GetAssay(object = fibroS1, assay = "RNA")@counts) == 0
+unexpressed.genes <- names(unexpressed.genes)[unexpressed.genes]
+low.expressed <- rowSums(GetAssay(object = fibroS1, assay = "RNA")@counts) <= 10
+low.expressed <- names(low.expressed)[low.expressed]
+length(low.expressed)
+```
+
+Based on Seurat's documentation the best solution, is to perform the filtering prior to creating the seurat object, thus, we'll re-read the data, and remove low abundance genes, and recreate the object.
+
+```{r seurat_build_object}
+a.fibro <- Read10X("data-raw/filtered_feature_bc_matrix/")
+
+all.genes <- rownames(a.fibro)
+genes2keep <- setdiff(all.genes, low.expressed)
+
+## Here we'll perform both filtering steps, both to keep abundant genes, and 
+## good quality cells
+b.fibro <- a.fibro[genes2keep, colnames(fibroS1)]
+
+fibroS <- CreateSeuratObject(b.fibro, project = "Fibroblasts_Sole") %>%
+  PercentageFeatureSet(pattern = "^MT-", col.name = "percent_mt") %>%
+  PercentageFeatureSet(pattern = "^RP[SL]", col.name = "percent_rb") %>%
+  PercentageFeatureSet(pattern = "^HB[^(P)]", col.name = "percent_hb") %>%
+  PercentageFeatureSet(pattern = "PECAM1|PF4", col.name = "percent_plat")
+  
+
+tmp <- soleS[[]][colnames(fibroS),] %>% select(subj, age) 
+tmp <- merge(fibroS[[]], tmp, by = 0, all.x = TRUE, sort = FALSE)
+rownames(tmp) <- tmp$Row.names
+tmp <- tmp[rownames(fibroS[[]]), ]  %>% select(-Row.names)
+
+all(rownames(tmp) == rownames(fibroS[[]]))
+fibroS@meta.data <- tmp
+
+usethis::use_data(fibroS1, fibroS, overwrite = TRUE)
+```
+
+
+
 

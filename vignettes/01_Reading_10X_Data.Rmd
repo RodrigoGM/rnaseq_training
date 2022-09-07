@@ -34,7 +34,7 @@ There are two read count matrices provided by the `cellranger` pipiline from 10X
 * `matrix.mtx`: A file containing the read count matrix, where rows represent the features, and columns are cells.  The matrix is also under a space saving format commonly referred to as a `sparse matrix`.  However, this is handled out-of-the-box by both Seurat and Monocle3, thus wont be further discussed.
 
 ```{r understanding_data}
-setwd("~/mskcc/singer/z_Collaborations/koff_training/")
+##setwd("~/mskcc/dev/rnaseq_training/")
 list.files(path = "data-raw/raw_feature_bc_matrix/")
 list.files(path = "data-raw/filtered_feature_bc_matrix")
 ```
@@ -76,34 +76,60 @@ devtools::load_all()
 * for long object names, one can opt to separate words with a `.`m or `_`, with ocasional use of cammelCaps.  Try to stay consistent
 
 ```{r read_in_w_seurat}
-## if needed run: setwd("~/mskcc/singer/z_Collaborations/koff_training/")
+## if needed run: setwd("~/mskcc/dev/rnaseq_training/")
+
+## this is the basic gene count matrix with rows as genes, and cells as columns.
+## a `.` is used to denote zero
 a.fibro <- Read10X(data.dir = "data-raw/filtered_feature_bc_matrix/")
 head(a.fibro)[,1:10]
 
-fibroS <- CreateSeuratObject(a.fibro, project = "Fibroblasts_Sole")
-fibroS
+## this creates the seurat object
+pre.fibroS <- CreateSeuratObject(a.fibro, project = "Fibroblasts_Sole")
+pre.fibroS
 ```
 
 ## Read-in 10X data with Monocle3
 1. Load the monocle3 library
-
-2. Read in matrix as before, however, monocle3 will directly create a `cell_data_set` or `cds` for short in one step
-
-```{r setup2, eval = FALSE}
+```{r step_1_monocle}
 library(monocle3)
+```
+2. Read in matrix as before, however, monocle3 will directly create a `cell_data_set` or `cds` for short in one step; albeit two options on how to do this exist depending on the starting point of the data.
 
-fibroM <- load_cellranger_data("data-raw/filtered_feature_bc_matrix/")
-fibroM
+2.1  Option 1. Load directly from cellranger output directory using `load_cellranger_data`. (Must contain Sample_Name/outs/filtered_feature_bc_matrix).  This will not work with our example, but its one of the most common methods.
+```{r step_2_1_monocle, eval = FALSE}
+## usually use load_cell_ranger_data when having the complete output
+pre.fibroM <- load_cellranger_data("data-raw/filtered_feature_bc_matrix/")
+pre.fibroM 
 ```
 
+2.2. Option 2. Read in the data using  by specificing 10X read count expression, features, and cell data files `load_mm_data`.  If the "features.tsv.gz" does not have a column named `gene_short_name`, this can be specified as an argument in the `feature_metadata_column_names` as done below
+```{r step_2_2_monocle}
+pre.fibroM <- load_mm_data(mat_path = "data-raw/filtered_feature_bc_matrix/matrix.mtx.gz", 
+                    feature_anno_path = "data-raw/filtered_feature_bc_matrix/features.tsv.gz", 
+                    cell_anno_path = "data-raw/filtered_feature_bc_matrix/barcodes.tsv.gz",
+                    feature_metadata_column_names = "gene_short_name")
+
+```
+
+*Note:* A third option to generate a Monocle3 file is available, however, this will be covered in a later step as it uses processed data as the starting point. 
+
+
 ## Saving the data
+There are multiple ways to save the data, however, in this tutorial we will use one `rda` file per object in a directory called `data/`.  To do this, we can simply construuct the directory using `mkdir` or `usethis::use_directory`, then use `save(obj, file = obj.rda)`.  Alternatively, if the project is set up in a quasi R package format, we can also use `usethis::use_data`.   This approach is prefered as we can later use the function `data()` to re-load our data for downstream analysis and/or plotting.  
 
-There are multiple ways to save the data, however, in this tutorial we will use one `rda` file per object in a directory called `data/`.  To do this, we can simply construct the directory using `mkdir` or `usethis::use_directory`, then use `save(obj, file = obj.rda)`.  Alternatively, if the project is set up in a quasi R package format, we can also use `usethis::use_data`.   This approach is prefered as we can later use the function `data()` to re-load our data for downstream analysis and/or plotting.  
+As of right now, but objects should be identical in terms of number of cells, and number of features.
 
+```{r check_both}
+pre.fibroS
+pre.fibroM
+
+```
+To save:
 ```{r short_way, eval = FALSE}
-usethis::use_data(fibroS)
-## re-test once monocle is installed on my computer
-## usethis::use_data(fibroM)
+## Seurat object
+usethis::use_data(pre.fibroS)
+## Monocle3 object
+usethis::use_data(pre.fibroM)
 ```
 
 ## Differences between our `fibroS` object to the published dataset in Solé-boldo, et al. 
@@ -111,13 +137,13 @@ usethis::use_data(fibroS)
 Our dataset `fibroS` is quite bare, basically only contains the count matrix, and a brief summary of the total number of reads.  If we look closer, `fibroS` contains data from ```nrow(fibroS)``` features/genes, from ```ncol(fibroS)``` cells.  Whereas the published `soleS` data, contains ```nrow(soleS)```, features/genes from ```ncol(soleS)```.  These differences are the result of the data cleaning, which is aimed to remove noise from the data.  Data cleaning will be our next step.
 
 ```{r our_data}
-fibroS
+pre.fibroS
 
 ## read count matrix
-fibroS@assays$RNA[1:10, 1:10]
+pre.fibroS@assays$RNA[1:10, 1:10]
 
 ## meta data / information about each cell
-head(fibroS@meta.data)
+head(pre.fibroS@meta.data)
 ```
 
 ```{r read_published_rds}
@@ -130,11 +156,49 @@ Some exploratory differences:
 ### Read Count Summary
 ```{r}
 summary(soleS$nCount_RNA)
-summary(fibroS$nCount_RNA)
+summary(pre.fibroS$nCount_RNA)
 ```
 
 ```{r}
-plot(density(fibroS$nCount_RNA), lwd = 3)
+plot(density(pre.fibroS$nCount_RNA), main = "Densities", lwd = 3)
 lines(density(soleS$nCount_RNA), col = "red", lty = 3)
 legend("topright", legend = c("Ours", "Published"), lwd = 3 , col = c("black", "red"))
 ```
+
+```{r save_soleS, eval = FALSE}
+usethis::use_data(soleS)
+```
+
+## Publication metadata
+Some sample/cell attributes exist only in the published data, specifically subject ID, and age groups.  These were extracted and are merged to the raw-data.
+
+```{r metadata_handling}
+suppressPackageStartupMessages(library(tidyverse))
+metadata <- soleS[[]] %>% 
+  select(subj, age) %>%
+  rownames_to_column(var = "cell_id")
+  
+tmp <- merge(pre.fibroS@meta.data, metadata, 
+             by.x = 0, by.y = "cell_id",
+             all = TRUE, sort = FALSE)
+rownames(tmp) = tmp$Row.names
+
+## check rows in the same order // not in the first merge
+all(rownames(tmp) == rownames(pre.fibroS@meta.data))
+## all rows in new table tmp are present in pre.fibroS
+all(rownames(tmp) %in% rownames(pre.fibroS@meta.data))
+
+## force re-order tmp object
+tmp <- tmp[rownames(pre.fibroS@meta.data), ] %>% 
+  select(-Row.names) ## removes new row
+
+## check rows in the same order // true
+all(rownames(tmp) == rownames(pre.fibroS@meta.data))
+ 
+## overwrite new object, with identical order as in pre.fibroS, but containing the subject, and age attributes
+pre.fibroS@meta.data <- tmp
+
+## overwrite
+usethis::use_data(pre.fibroS, overwrite = TRUE)
+```
+

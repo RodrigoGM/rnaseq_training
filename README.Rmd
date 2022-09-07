@@ -23,13 +23,18 @@ The goal of rnaseq_training is to provide a platform to initiate single-cell dat
 
 ## Package installation
 
-Install Seurat:
+### Install Seurat:
 
 ``` r
 install.packages("Seurat", dependencies = TRUE)
 install.packages(c("tidyverse", "patchwork"), dependencies = TRUE)
 ```
 
-Install Monocle3:
+### Install Monocle3:
 Follow install instructions on the [monocle3 website](https://cole-trapnell-lab.github.io/monocle3/)
 
+
+### Reading material
+[Solé-Boldo, et al.](https://doi.org/10.1038/s42003-020-0922-4)
+[Buechler, et al.](https://doi.org/10.1038/s41586-021-03549-5)
+[Luecken & Theis](https://www.embopress.org/doi/full/10.15252/msb.20188746)

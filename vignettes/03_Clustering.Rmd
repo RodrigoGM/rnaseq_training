@@ -1,0 +1,97 @@
+---
+title: "03_Clustering"
+author: "Rodrigo Gularte Mérida"
+date: "9/6/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Setup
+```{r libraries}
+library(Seurat)
+library(tidyverse)
+library(patchwork)
+devtools::load_all()
+```
+
+## load curated data
+```{r data_load}
+data(fibroS)
+
+```
+
+## Running Seurat Processing and clustering
+* The SCTransform performs 3 crucial steps: Normalization, Finding Variable Genes and Scaling.
+
+```{r seurat_pipeline}
+set.seed(2022)
+fibroS <- fibroS %>%
+  SCTransform(vars.to.regress = "percent_mt", verbose = FALSE)
+```
+
+* Linear dimentionality reduction suggest between 16-20 PCs explain most of the data
+```{r pca}
+fibroS <- fibroS %>% RunPCA(npcs = 100)
+
+ElbowPlot(fibroS, ndims = 50) + theme_light()
+```
+
+* *Note*: an alternate strategy is to estimate the proportion of variance explained.  In this case, 80% of the total variance is explaied by 34 PCs.
+```{r variance_explained}
+## calculate proportion of variance explained and choose threshold
+prop_varexp <- fibroS@reductions$pca@stdev^2 / sum(fibroS@reductions$pca@stdev^2)
+
+thrs <- c(80, 85, 90, 95)/100
+pcs_at_thrs <- c(which(cumsum(prop_varexp) >= 0.80)[1],
+                 which(cumsum(prop_varexp) >= 0.85)[1],
+                 which(cumsum(prop_varexp) >= 0.90)[1],
+                 which(cumsum(prop_varexp) >= 0.95)[1])
+
+## variance explained plots
+plot(cumsum(prop_varexp))
+abline(h = thrs, col = "gray", lty = 3)
+abline(v = pcs_at_thrs, col = "gray20", lty = 2)
+text(x = pcs_at_thrs, y = rep(0.2, 4), labels = pcs_at_thrs, pos = 4)
+
+```
+
+```{r use_pc_and_clustering}
+## use 80% variance explaned
+pc_use <- pcs_at_thrs[1]
+
+fibroS <- fibroS %>% 
+  FindNeighbors(dims = 1:pc_use) %>%
+  FindClusters(resolution = c(0.2, 0.4, 0.6, 0.8, 1)) %>%
+  RunUMAP(dims = 1:pc_use)
+
+```
+
+```{r plot_check}
+fibroS %>% DimPlot() + theme_light()
+
+xx <- fibroS %>% 
+  DimPlot(group.by = c("SCT_snn_res.0.2", "SCT_snn_res.0.4", "SCT_snn_res.0.6", "SCT_snn_res.0.8", "SCT_snn_res.1"), 
+          ncol = 5)
+
+for(i in 1:4) {
+  xx[[i]] <- xx[[i]] + theme_light() + NoLegend() + theme(axis.title.x = element_blank(), axis.title.y = element_blank())
+}
+xx[[5]] <- xx[[5]] + theme_light()
+
+```
+
+
+```{r}
+data(soleS)
+
+soleS %>% DimPlot(group.by = "integrated_snn_res.0.4")
+
+tmp1 <- merge(fibroS[[]], soleS[[]], by = 0, sort = FALSE) %>% select(SCT_snn_res.0.2, SCT_snn_res.0.4, SCT_snn_res.0.6, SCT_snn_res.0.8, SCT_snn_res.1, subj.y, age.y, integrated_snn_res.0.4, celltype.age )
+
+tmp1 %>% select(SCT_snn_res.0.6, integrated_snn_res.0.4) %>% table
+
+```

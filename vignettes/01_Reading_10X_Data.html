@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+<meta name="date" content="2022-07-17" />
+
+<title>01 Reading and loading data into R using Seurat and Monocle3</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">01 Reading and loading data into R using
+Seurat and Monocle3</h1>
+<h4 class="date">2022-07-17</h4>
+
+
+
+<div id="a-primer-on-reading-single-cell-data-from-10x-using-a-combination-of-seurat-and-monocle3" class="section level2">
+<h2>A primer on reading single-cell data from 10x using a combination of
+Seurat and Monocle3</h2>
+<p>Both Seurat and Monocle3 are extremely powerful tools for single-cell
+data analysis. Each offers distinct features for a specific purpose.
+Seurat’s quality control checks, scaling, aligning, and clustering via
+<code>SCTransform</code> is extremely well known and trusted
+out-of-the-box. However, it lacks dedicated support for quantitative
+analysis. Whereas Monocle3’s contains these dedicated functions to carry
+out differential expression, trajectory, and pseudotime analysis, with
+the caveat that it’s scaling, aligning, clustering are done a little
+different, providing a high degree of customization, but also higher
+understanding of the data, and analysis algorithms. Reading the data
+into Seurat, and Monocle3 will facilitate the implementation and use of
+their analysis functions downstream, hence both will be covered.</p>
+<p>On this primer, we will use fibroblast data from <a href="https://doi.org/10.1038/s42003-020-0922-4">Solé-Boldo, et al.</a>,
+available under GEO accession <a href="https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE130973">GSE130973</a>.
+This dataset was chosen as it contains ~15,000 cells, under two
+treatments, whose analysis was performed using Seurat, and a re-analysis
+ready object was provided to check our work as we reproduce their
+analysis.</p>
+<p>Finally, we will make use of a specific collection of libraries and
+grammar known as the <code>tidyverse</code> to create simple workflows,
+and summaries of the data. Note that while <code>tidyverse</code> does
+not follow conventional R programming, it does however, simplify code
+and improves the legibility of the work which beneficial in our
+case.</p>
+</div>
+<div id="understanding-10xs-default-read-count-matrices" class="section level2">
+<h2>Understanding 10X’s default read count matrices</h2>
+<p>There are two read count matrices provided by the
+<code>cellranger</code> pipiline from 10X. These are the
+<code>raw_feature_bc_matrix</code> and
+<code>filtered_feature_bc_matrix</code>. Both contain the same 3
+files:</p>
+<ul>
+<li><p><code>features.tsv</code>: A file containing 2 or 3 columns with
+information pertaining to genes <code>Feature ID</code>,
+<code>HGNC Symbol</code>, and optional <code>assay type</code> if
+antibody barcoding were used</p></li>
+<li><p><code>barcodes.tsv</code>: A file containing a single column,
+with rows containing nucleotide barcode for each cell</p></li>
+<li><p><code>matrix.mtx</code>: A file containing the read count matrix,
+where rows represent the features, and columns are cells. The matrix is
+also under a space saving format commonly referred to as a
+<code>sparse matrix</code>. However, this is handled out-of-the-box by
+both Seurat and Monocle3, thus wont be further discussed.</p></li>
+</ul>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="do">##setwd(&quot;~/mskcc/dev/rnaseq_training/&quot;)</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">list.files</span>(<span class="at">path =</span> <span class="st">&quot;data-raw/raw_feature_bc_matrix/&quot;</span>)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;GSE130973_barcodes_raw.tsv.gz&quot; &quot;GSE130973_genes_raw.tsv.gz&quot;   </span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [3] &quot;GSE130973_matrix_raw.mtx.gz&quot;</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">list.files</span>(<span class="at">path =</span> <span class="st">&quot;data-raw/filtered_feature_bc_matrix&quot;</span>)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] &quot;barcodes.tsv.gz&quot; &quot;features.tsv.gz&quot; &quot;matrix.mtx.gz&quot;</span></span></code></pre></div>
+<p>These are usually in compressed form to save space. A peek in side
+each file shows the following:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="do">## features </span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">read.delim</span>(<span class="st">&quot;data-raw/filtered_feature_bc_matrix/features.tsv.gz&quot;</span>, <span class="at">nrows =</span> <span class="dv">10</span>)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    ENSG00000243485    MIR1302.10</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 1  ENSG00000237613       FAM138A</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 2  ENSG00000186092         OR4F5</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 3  ENSG00000238009  RP11-34P13.7</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 4  ENSG00000239945  RP11-34P13.8</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 5  ENSG00000237683    AL627309.1</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6  ENSG00000239906 RP11-34P13.14</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 7  ENSG00000241599  RP11-34P13.9</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 8  ENSG00000228463    AP006222.2</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 9  ENSG00000237094 RP4-669L17.10</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 10 ENSG00000235249        OR4F29</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="do">## barcodes</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="fu">readLines</span>(<span class="st">&quot;data-raw/filtered_feature_bc_matrix/barcodes.tsv.gz&quot;</span>, <span class="at">n =</span> <span class="dv">10</span>)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [1] &quot;AAACCTGAGTTAAGTG-1&quot; &quot;AAACCTGGTGCAACTT-1&quot; &quot;AAACCTGTCATGTGGT-1&quot;</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [4] &quot;AAACCTGTCCATTCTA-1&quot; &quot;AAACCTGTCGGATGGA-1&quot; &quot;AAACGGGAGTCAATAG-1&quot;</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [7] &quot;AAACGGGCACCAGTTA-1&quot; &quot;AAACGGGGTGCTCTTC-1&quot; &quot;AAACGGGTCTGGCGAC-1&quot;</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [10] &quot;AAAGATGAGAGCAATT-1&quot;</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="do">## sparse matrix </span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>Matrix<span class="sc">::</span><span class="fu">readMM</span>(<span class="st">&quot;data-raw/filtered_feature_bc_matrix/matrix.mtx.gz&quot;</span>)[<span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>]</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 10 x 10 sparse Matrix of class &quot;dgTMatrix&quot;</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                          </span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [1,] . . . . . . . . . .</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [2,] . . . . . . . . . .</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [3,] . . . . . . . . . .</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [4,] . . . . . . . . . .</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [5,] . . . . . . . . . .</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [6,] . . . . . . . . . .</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [7,] . . . . . . . . . .</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [8,] . . . . . . . . . .</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  [9,] . . . . . . . . . .</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [10,] . . . . . . . . . .</span></span></code></pre></div>
+</div>
+<div id="read-in-10x-data-using-seurat" class="section level2">
+<h2>Read in 10X data using Seurat</h2>
+<ol style="list-style-type: decimal">
+<li>first load the libraries</li>
+</ol>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(Seurat)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Attaching SeuratObject</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Attaching sp</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="do">## load custom fuctions, if any</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>devtools<span class="sc">::</span><span class="fu">load_all</span>()</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; ℹ Loading rnaseq_training</span></span></code></pre></div>
+<ol start="2" style="list-style-type: decimal">
+<li>read in the filtered matrix. Usually it’s best to load the
+<code>filtered_feature_bc_matrix</code> as these have been pre-filtered
+by <code>cellranger</code> to contain the subset of droplets most likely
+to be cells. If the number of cells does not match the expected number,
+one can re-analyze the <code>raw_feature_bc_matrix</code> to adjust the
+number of droplets, among other analyses.</li>
+</ol>
+<p><em>Note:</em> While we refer to this as the read count matrix; the
+data within the matrix is actually unique molecular identifier (UMI)
+counts. A UMI, is a unique barcode that is attached to an oligo. With
+PCR enrichment, UMI will remain the same, and will essentially
+<em>tag</em> a specific molecular sequence. In its simplest form, for
+example, if a gene is expressed at 100 copies, we would be counting 100
+UMI, whereas if its expressed with 20 copies, we would be counting 20
+UMI.</p>
+<ul>
+<li>construction of the command line:</li>
+</ul>
+<p><code>objectname &lt;- function(arg1 = &quot;text&quot;, arg2 = &quot;text&quot;, arg3 = otherobject, ...)</code></p>
+<p><code>objectname</code>: is the name to the object containing our
+data, text string, or function <code>&quot;&lt;-&quot;</code>: is the assignment
+operator, can be substituted with <code>=</code> as well, albeit
+<code>&lt;-</code> is prefered <code>function</code>: the name of the
+function to be used <code>arg*</code>: argument one of the function. By
+convention all text must be in double-quotes &quot; or single quote &#39;</p>
+<ul>
+<li>for long object names, one can opt to separate words with a
+<code>.</code>m or <code>_</code>, with ocasional use of cammelCaps. Try
+to stay consistent</li>
+</ul>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="do">## if needed run: setwd(&quot;~/mskcc/dev/rnaseq_training/&quot;)</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="do">## this is the basic gene count matrix with rows as genes, and cells as columns.</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="do">## a `.` is used to denote zero</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>a.fibro <span class="ot">&lt;-</span> <span class="fu">Read10X</span>(<span class="at">data.dir =</span> <span class="st">&quot;data-raw/filtered_feature_bc_matrix/&quot;</span>)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(a.fibro)[,<span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>]</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 6 x 10 sparse Matrix of class &quot;dgCMatrix&quot;</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    [[ suppressing 10 column names &#39;AAACCTGAGTTAAGTG-1&#39;, &#39;AAACCTGGTGCAACTT-1&#39;, &#39;AAACCTGTCATGTGGT-1&#39; ... ]]</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                                 </span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; MIR1302-10   . . . . . . . . . .</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; FAM138A      . . . . . . . . . .</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; OR4F5        . . . . . . . . . .</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; RP11-34P13.7 . . . . . . . . . .</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; RP11-34P13.8 . . . . . . . . . .</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; AL627309.1   . . . . . . . . . .</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="do">## this creates the seurat object</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>pre.fibroS <span class="ot">&lt;-</span> <span class="fu">CreateSeuratObject</span>(a.fibro, <span class="at">project =</span> <span class="st">&quot;Fibroblasts_Sole&quot;</span>)</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Warning: Feature names cannot have underscores (&#39;_&#39;), replacing with dashes</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; (&#39;-&#39;)</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>pre.fibroS</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; An object of class Seurat </span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 32738 features across 16062 samples within 1 assay </span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Active assay: RNA (32738 features, 0 variable features)</span></span></code></pre></div>
+</div>
+<div id="read-in-10x-data-with-monocle3" class="section level2">
+<h2>Read-in 10X data with Monocle3</h2>
+<ol style="list-style-type: decimal">
+<li>Load the monocle3 library</li>
+</ol>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(monocle3)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Loading required package: Biobase</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Loading required package: BiocGenerics</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Attaching package: &#39;BiocGenerics&#39;</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; The following objects are masked from &#39;package:stats&#39;:</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     IQR, mad, sd, var, xtabs</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; The following objects are masked from &#39;package:base&#39;:</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     anyDuplicated, append, as.data.frame, basename, cbind, colnames,</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     union, unique, unsplit, which.max, which.min</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Welcome to Bioconductor</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     Vignettes contain introductory material; view with</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     &#39;browseVignettes()&#39;. To cite Bioconductor, see</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     &#39;citation(&quot;Biobase&quot;)&#39;, and for packages &#39;citation(&quot;pkgname&quot;)&#39;.</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Loading required package: SingleCellExperiment</span></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Loading required package: SummarizedExperiment</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Loading required package: MatrixGenerics</span></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Loading required package: matrixStats</span></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Attaching package: &#39;matrixStats&#39;</span></span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; The following objects are masked from &#39;package:Biobase&#39;:</span></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     anyMissing, rowMedians</span></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Attaching package: &#39;MatrixGenerics&#39;</span></span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; The following objects are masked from &#39;package:matrixStats&#39;:</span></span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     colAlls, colAnyNAs, colAnys, colAvgsPerRowSet, colCollapse,</span></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     colCounts, colCummaxs, colCummins, colCumprods, colCumsums,</span></span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     colDiffs, colIQRDiffs, colIQRs, colLogSumExps, colMadDiffs,</span></span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     colMads, colMaxs, colMeans2, colMedians, colMins, colOrderStats,</span></span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     colProds, colQuantiles, colRanges, colRanks, colSdDiffs, colSds,</span></span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     colSums2, colTabulates, colVarDiffs, colVars, colWeightedMads,</span></span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     colWeightedMeans, colWeightedMedians, colWeightedSds,</span></span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     colWeightedVars, rowAlls, rowAnyNAs, rowAnys, rowAvgsPerColSet,</span></span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     rowCollapse, rowCounts, rowCummaxs, rowCummins, rowCumprods,</span></span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     rowCumsums, rowDiffs, rowIQRDiffs, rowIQRs, rowLogSumExps,</span></span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     rowMadDiffs, rowMads, rowMaxs, rowMeans2, rowMedians, rowMins,</span></span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     rowOrderStats, rowProds, rowQuantiles, rowRanges, rowRanks,</span></span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     rowSdDiffs, rowSds, rowSums2, rowTabulates, rowVarDiffs, rowVars,</span></span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     rowWeightedMads, rowWeightedMeans, rowWeightedMedians,</span></span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     rowWeightedSds, rowWeightedVars</span></span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; The following object is masked from &#39;package:Biobase&#39;:</span></span>
+<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-52"><a href="#cb5-52" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     rowMedians</span></span>
+<span id="cb5-53"><a href="#cb5-53" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Loading required package: GenomicRanges</span></span>
+<span id="cb5-54"><a href="#cb5-54" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Loading required package: stats4</span></span>
+<span id="cb5-55"><a href="#cb5-55" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Loading required package: S4Vectors</span></span>
+<span id="cb5-56"><a href="#cb5-56" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-57"><a href="#cb5-57" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Attaching package: &#39;S4Vectors&#39;</span></span>
+<span id="cb5-58"><a href="#cb5-58" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; The following objects are masked from &#39;package:base&#39;:</span></span>
+<span id="cb5-59"><a href="#cb5-59" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-60"><a href="#cb5-60" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     expand.grid, I, unname</span></span>
+<span id="cb5-61"><a href="#cb5-61" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Loading required package: IRanges</span></span>
+<span id="cb5-62"><a href="#cb5-62" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-63"><a href="#cb5-63" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Attaching package: &#39;IRanges&#39;</span></span>
+<span id="cb5-64"><a href="#cb5-64" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; The following object is masked from &#39;package:sp&#39;:</span></span>
+<span id="cb5-65"><a href="#cb5-65" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-66"><a href="#cb5-66" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     %over%</span></span>
+<span id="cb5-67"><a href="#cb5-67" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Loading required package: GenomeInfoDb</span></span>
+<span id="cb5-68"><a href="#cb5-68" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-69"><a href="#cb5-69" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Attaching package: &#39;SummarizedExperiment&#39;</span></span>
+<span id="cb5-70"><a href="#cb5-70" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; The following object is masked from &#39;package:SeuratObject&#39;:</span></span>
+<span id="cb5-71"><a href="#cb5-71" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-72"><a href="#cb5-72" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     Assays</span></span>
+<span id="cb5-73"><a href="#cb5-73" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; The following object is masked from &#39;package:Seurat&#39;:</span></span>
+<span id="cb5-74"><a href="#cb5-74" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-75"><a href="#cb5-75" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     Assays</span></span>
+<span id="cb5-76"><a href="#cb5-76" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-77"><a href="#cb5-77" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Attaching package: &#39;monocle3&#39;</span></span>
+<span id="cb5-78"><a href="#cb5-78" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; The following objects are masked from &#39;package:Biobase&#39;:</span></span>
+<span id="cb5-79"><a href="#cb5-79" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb5-80"><a href="#cb5-80" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     exprs, fData, fData&lt;-, pData, pData&lt;-</span></span></code></pre></div>
+<ol start="2" style="list-style-type: decimal">
+<li>Read in matrix as before, however, monocle3 will directly create a
+<code>cell_data_set</code> or <code>cds</code> for short in one step;
+albeit two options on how to do this exist depending on the starting
+point of the data.</li>
+</ol>
+<p>2.1 Option 1. Load directly from cellranger output directory using
+<code>load_cellranger_data</code>. (Must contain
+Sample_Name/outs/filtered_feature_bc_matrix). This will not work with
+our example, but its one of the most common methods.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="do">## usually use load_cell_ranger_data when having the complete output</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>pre.fibroM <span class="ot">&lt;-</span> <span class="fu">load_cellranger_data</span>(<span class="st">&quot;data-raw/filtered_feature_bc_matrix/&quot;</span>)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>pre.fibroM </span></code></pre></div>
+<p>2.2. Option 2. Read in the data using by specificing 10X read count
+expression, features, and cell data files <code>load_mm_data</code>. If
+the “features.tsv.gz” does not have a column named
+<code>gene_short_name</code>, this can be specified as an argument in
+the <code>feature_metadata_column_names</code> as done below</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>pre.fibroM <span class="ot">&lt;-</span> <span class="fu">load_mm_data</span>(<span class="at">mat_path =</span> <span class="st">&quot;data-raw/filtered_feature_bc_matrix/matrix.mtx.gz&quot;</span>, </span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>                    <span class="at">feature_anno_path =</span> <span class="st">&quot;data-raw/filtered_feature_bc_matrix/features.tsv.gz&quot;</span>, </span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>                    <span class="at">cell_anno_path =</span> <span class="st">&quot;data-raw/filtered_feature_bc_matrix/barcodes.tsv.gz&quot;</span>,</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>                    <span class="at">feature_metadata_column_names =</span> <span class="st">&quot;gene_short_name&quot;</span>)</span></code></pre></div>
+<p><em>Note:</em> A third option to generate a Monocle3 file is
+available, however, this will be covered in a later step as it uses
+processed data as the starting point.</p>
+</div>
+<div id="saving-the-data" class="section level2">
+<h2>Saving the data</h2>
+<p>There are multiple ways to save the data, however, in this tutorial
+we will use one <code>rda</code> file per object in a directory called
+<code>data/</code>. To do this, we can simply construuct the directory
+using <code>mkdir</code> or <code>usethis::use_directory</code>, then
+use <code>save(obj, file = obj.rda)</code>. Alternatively, if the
+project is set up in a quasi R package format, we can also use
+<code>usethis::use_data</code>. This approach is prefered as we can
+later use the function <code>data()</code> to re-load our data for
+downstream analysis and/or plotting.</p>
+<p>As of right now, but objects should be identical in terms of number
+of cells, and number of features.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>pre.fibroS</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; An object of class Seurat </span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 32738 features across 16062 samples within 1 assay </span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Active assay: RNA (32738 features, 0 variable features)</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>pre.fibroM</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; class: cell_data_set </span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; dim: 32738 16062 </span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; metadata(1): cds_version</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; assays(1): counts</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; rownames(32738): ENSG00000243485 ENSG00000237613 ... ENSG00000215616</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   ENSG00000215611</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; rowData names(1): gene_short_name</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; colnames(16062): AAACCTGAGTTAAGTG-1 AAACCTGGTGCAACTT-1 ...</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;   TTTGTCATCGGACAAG-5 TTTGTCATCTTAACCT-5</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; colData names(3): cell Size_Factor n.umi</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; reducedDimNames(0):</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; mainExpName: NULL</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; altExpNames(0):</span></span></code></pre></div>
+<p>To save:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="do">## Seurat object</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>usethis<span class="sc">::</span><span class="fu">use_data</span>(pre.fibroS)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="do">## Monocle3 object</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>usethis<span class="sc">::</span><span class="fu">use_data</span>(pre.fibroM)</span></code></pre></div>
+</div>
+<div id="differences-between-our-fibros-object-to-the-published-dataset-in-solé-boldo-et-al." class="section level2">
+<h2>Differences between our <code>fibroS</code> object to the published
+dataset in Solé-boldo, et al. </h2>
+<p>Our dataset <code>fibroS</code> is quite bare, basically only
+contains the count matrix, and a brief summary of the total number of
+reads. If we look closer, <code>fibroS</code> contains data from
+<code>nrow(fibroS)</code> features/genes, from <code>ncol(fibroS)</code>
+cells. Whereas the published <code>soleS</code> data, contains
+<code>nrow(soleS)</code>, features/genes from <code>ncol(soleS)</code>.
+These differences are the result of the data cleaning, which is aimed to
+remove noise from the data. Data cleaning will be our next step.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>pre.fibroS</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; An object of class Seurat </span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 32738 features across 16062 samples within 1 assay </span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Active assay: RNA (32738 features, 0 variable features)</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="do">## read count matrix</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>pre.fibroS<span class="sc">@</span>assays<span class="sc">$</span>RNA[<span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>]</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 10 x 10 sparse Matrix of class &quot;dgCMatrix&quot;</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    [[ suppressing 10 column names &#39;AAACCTGAGTTAAGTG-1&#39;, &#39;AAACCTGGTGCAACTT-1&#39;, &#39;AAACCTGTCATGTGGT-1&#39; ... ]]</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                                  </span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; MIR1302-10    . . . . . . . . . .</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; FAM138A       . . . . . . . . . .</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; OR4F5         . . . . . . . . . .</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; RP11-34P13.7  . . . . . . . . . .</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; RP11-34P13.8  . . . . . . . . . .</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; AL627309.1    . . . . . . . . . .</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; RP11-34P13.14 . . . . . . . . . .</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; RP11-34P13.9  . . . . . . . . . .</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; AP006222.2    . . . . . . . . . .</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; RP4-669L17.10 . . . . . . . . . .</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a><span class="do">## meta data / information about each cell</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(pre.fibroS<span class="sc">@</span>meta.data)</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;                          orig.ident nCount_RNA nFeature_RNA</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; AAACCTGAGTTAAGTG-1 Fibroblasts_Sole       1971          852</span></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; AAACCTGGTGCAACTT-1 Fibroblasts_Sole       5114         1263</span></span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; AAACCTGTCATGTGGT-1 Fibroblasts_Sole       1860          754</span></span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; AAACCTGTCCATTCTA-1 Fibroblasts_Sole       3148          978</span></span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; AAACCTGTCGGATGGA-1 Fibroblasts_Sole       2912          928</span></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; AAACGGGAGTCAATAG-1 Fibroblasts_Sole       4672         1205</span></span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>soleS <span class="ot">&lt;-</span> <span class="fu">readRDS</span>(<span class="st">&quot;data-raw/GSE130973_seurat_analysis_lyko.rds&quot;</span>)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>soleS</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; An object of class Seurat </span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; 23352 features across 15457 samples within 2 assays </span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Active assay: RNA (21352 features, 0 variable features)</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  1 other assay present: integrated</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;  2 dimensional reductions calculated: pca, umap</span></span></code></pre></div>
+<p>Some exploratory differences:</p>
+<div id="read-count-summary" class="section level3">
+<h3>Read Count Summary</h3>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(soleS<span class="sc">$</span>nCount_RNA)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. </span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     800    1942    2773    3838    4229   98708</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(pre.fibroS<span class="sc">$</span>nCount_RNA)</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. </span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt;     800    1942    2756    3830    4213   98714</span></span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(<span class="fu">density</span>(pre.fibroS<span class="sc">$</span>nCount_RNA), <span class="at">main =</span> <span class="st">&quot;Densities&quot;</span>, <span class="at">lwd =</span> <span class="dv">3</span>)</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">lines</span>(<span class="fu">density</span>(soleS<span class="sc">$</span>nCount_RNA), <span class="at">col =</span> <span class="st">&quot;red&quot;</span>, <span class="at">lty =</span> <span class="dv">3</span>)</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="fu">legend</span>(<span class="st">&quot;topright&quot;</span>, <span class="at">legend =</span> <span class="fu">c</span>(<span class="st">&quot;Ours&quot;</span>, <span class="st">&quot;Published&quot;</span>), <span class="at">lwd =</span> <span class="dv">3</span> , <span class="at">col =</span> <span class="fu">c</span>(<span class="st">&quot;black&quot;</span>, <span class="st">&quot;red&quot;</span>))</span></code></pre></div>
+<p><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASAAAAEgCAYAAAAUg66AAAAEDmlDQ1BrQ0dDb2xvclNwYWNlR2VuZXJpY1JHQgAAOI2NVV1oHFUUPpu5syskzoPUpqaSDv41lLRsUtGE2uj+ZbNt3CyTbLRBkMns3Z1pJjPj/KRpKT4UQRDBqOCT4P9bwSchaqvtiy2itFCiBIMo+ND6R6HSFwnruTOzu5O4a73L3PnmnO9+595z7t4LkLgsW5beJQIsGq4t5dPis8fmxMQ6dMF90A190C0rjpUqlSYBG+PCv9rt7yDG3tf2t/f/Z+uuUEcBiN2F2Kw4yiLiZQD+FcWyXYAEQfvICddi+AnEO2ycIOISw7UAVxieD/Cyz5mRMohfRSwoqoz+xNuIB+cj9loEB3Pw2448NaitKSLLRck2q5pOI9O9g/t/tkXda8Tbg0+PszB9FN8DuPaXKnKW4YcQn1Xk3HSIry5ps8UQ/2W5aQnxIwBdu7yFcgrxPsRjVXu8HOh0qao30cArp9SZZxDfg3h1wTzKxu5E/LUxX5wKdX5SnAzmDx4A4OIqLbB69yMesE1pKojLjVdoNsfyiPi45hZmAn3uLWdpOtfQOaVmikEs7ovj8hFWpz7EV6mel0L9Xy23FMYlPYZenAx0yDB1/PX6dledmQjikjkXCxqMJS9WtfFCyH9XtSekEF+2dH+P4tzITduTygGfv58a5VCTH5PtXD7EFZiNyUDBhHnsFTBgE0SQIA9pfFtgo6cKGuhooeilaKH41eDs38Ip+f4At1Rq/sjr6NEwQqb/I/DQqsLvaFUjvAx+eWirddAJZnAj1DFJL0mSg/gcIpPkMBkhoyCSJ8lTZIxk0TpKDjXHliJzZPO50dR5ASNSnzeLvIvod0HG/mdkmOC0z8VKnzcQ2M/Yz2vKldduXjp9bleLu0ZWn7vWc+l0JGcaai10yNrUnXLP/8Jf59ewX+c3Wgz+B34Df+vbVrc16zTMVgp9um9bxEfzPU5kPqUtVWxhs6OiWTVW+gIfywB9uXi7CGcGW/zk98k/kmvJ95IfJn/j3uQ+4c5zn3Kfcd+AyF3gLnJfcl9xH3OfR2rUee80a+6vo7EK5mmXUdyfQlrYLTwoZIU9wsPCZEtP6BWGhAlhL3p2N6sTjRdduwbHsG9kq32sgBepc+xurLPW4T9URpYGJ3ym4+8zA05u44QjST8ZIoVtu3qE7fWmdn5LPdqvgcZz8Ww8BWJ8X3w0PhQ/wnCDGd+LvlHs8dRy6bLLDuKMaZ20tZrqisPJ5ONiCq8yKhYM5cCgKOu66Lsc0aYOtZdo5QCwezI4wm9J/v0X23mlZXOfBjj8Jzv3WrY5D+CsA9D7aMs2gGfjve8ArD6mePZSeCfEYt8CONWDw8FXTxrPqx/r9Vt4biXeANh8vV7/+/16ffMD1N8AuKD/A/8leAvFY9bLAAAAOGVYSWZNTQAqAAAACAABh2kABAAAAAEAAAAaAAAAAAACoAIABAAAAAEAAAEgoAMABAAAAAEAAAEgAAAAAKtAJY0AAEAASURBVHgB7Z0J3FVT98d3s1mZKiTJUCGpZMiQzCJJJSpTpjcqM4VIhteUKcLfa86QOUlvmUVooChDSHiRkhQq0fmv7659nnPvc+9z73Onc89z1/p8nuees88ef+ecddZae+21q3lCRkkRUAQUgRAQqB5Cm9qkIqAIKAIWAWVA+iAoAopAaAgoAwoNem1YEVAElAHpM6AIKAKhIaAMKDTotWFFQBFQBqTPgCKgCISGgDKg0KDXhhUBRUAZkD4DioAiEBoCyoBCg14bVgQUAWVA+gwoAopAaAgoAwoNem1YEVAElAHpM6AIKAKhIaAMKDTotWFFQBFQBqTPgCKgCISGgDKg0KDXhhUBRUAZkD4DioAiEBoCyoBCg14bVgQUAWVA+gwoAopAaAgoAwoNem1YEVAElAHpM6AIKAKhIaAMKDTotWFFQBFQBqTPgCKgCISGgDKg0KDXhhUBRUAZkD4DioAiEBoCyoBCg14bVgQUAWVA+gwoAopAaAgoAwoNem1YEVAElAHpM6AIKAKhIaAMKDTotWFFQBFQBqTPgCKgCISGgDKg0KDXhhUBRUAZkD4DioAiEBoCNUNrWRsuGAILFiwwxx57bLn2ateuberWrWvatm1r+vXrZ9ZZZ51yecJOuOGGG8z48eNtN1555RVTvXrZN3PVqlXmk08+MS1btvS7WVF+P5MeFA8CnlKVR+C7777z5Imr8K9x48aevOhFh8VJJ53k9/vvv//2+/fOO+94bdq08Xr16uWncZAsf0wmPSkaBFQCKp5vQUF6su2225pDDjnEyMts/vjjDzN58mTz1VdfmXnz5pljjjnGfPbZZ2bLLbcsSF/SaWTXXXc1ixYtslmrVavmF2nfvr09btasmZ/GQbL8MZn0pHgQKBpWqB3JGwJBCahHjx4x7SBVDB482JcyRFWLue5OfvvtN+/bb791p2n9UuaHH36oMO/ixYs9YXre/PnzvX/++afCvMGL8gbZPsdLQME8iY5FbfPmzp3rCfNNdNlPW7lypffNN994wpxT5vUL6UGlETCVLqEFIodARQyIwfCyiWRkX2iRMrxly5b5Y3z33Xe9nXfe2SOdl15sRt7AgQO95cuX+3k46Nu3r7fuuut6e+21l/fpp5967dq188ReY8ug3k2YMCEm/+OPP+5ts8029rpjJvXr1/duu+22mHxnnHGGrZe6YZZTp061565MzZo17fkdd9xhy8Xnd5XR33POOcdbf/31bZv0bZdddvEYX5B++uknr0+fPh71ujYY+4EHHlhpBhysV48TI6AMKDEuVSo1FQNisMcff7z/ws2aNcuO/7XXXvNq1Kjhp2+44Yb+8X777WfzuH+9e/e21zbddFOvXr16Xq1atbyNNtrIzy8Gbk+M4Ta7GJN9hkZ+UacsY+OF52WnXUfxNp0PPvjAr9MxCH6HDx9ui8Tnd/UccMABfjmYkGOOMJogc9x3331tPtJhvEHmu//++3tIUEq5Q6BsSkHuolLpItCoUSN/8NiERB0yAwYMsL8NGjQwInmYhQsXmltvvdXme/PNN82LL77ol3EHzLjtvvvuhl/+TjzxRHvpzz//NJSBRo8ezYfPbL755kZULzNp0iQjkofp0KGDOfTQQ83s2bNtvkT/mPGaM2eOf6lz5872/OSTT/bT4g9o79VXX7XJIgWZH3/80ZahLmxhgwYNstdIf+utt+zxnXfeaWbOnGn/Ro0aZW1LIskZUcvsdf2XGwSUAeUGx8jXstZaa/ljELuMfUGZ4oa6d+9uZMbJiFRgzjrrLLPJJpvY9EcffdT+xv+DSYm0ZKfMRTLyL8OQIK5BYh8yu+22m7nqqqssg2Oafdy4cbYNmyHBvzp16hgM6Y5EmrHnuBMko2effdZeEmnOiL3LiDpnRP0zojba9GnTphlRG816661nyANdcMEFlnk+/PDDRiQfM336dPPAAw+YJk2a2Ov6LzcIKAPKDY6Rr+X777/3x9C0adMYKeOZZ54xO+20k/1r1aqVERuRzSuqnV8meLD11lv7pxtssIF/vGLFCnt8+umnG1G97DEv/xVXXGH23ntvs9lmm5n+/ftbyckvlIMDJzHhQwQzcWNx0hxNMBaYGe1DS5cuNTAfJDgkNaS6MWPG2Gv6L3cIKAPKHZaRrgm1yxEShmMypOGgiHTg/niBeSEbNmzoivi/YsMxSCmOnEThzvmlflS6Cy+80ASZFdPtI0aMMAcddJBVjYJlsjl2Y6Evbgz8wvAYB3+onJDYksxTTz1l++DGgbootidz1FFHmaeffjqbrmjZOATUDygOkFI8nTJlim+fkdkr+2IGVY0jjjjC3HLLLT402G1kxso/z+QANejMM880eC7LtLgRQ7Bt4/PPPzczZsywKpEYgFNWDXNIRYwFFQt7z9ixY30VcsmSJUaM5Wbttdf2q4AR0e7zzz9vVUiZJbNMZ+TIkTbPE088Ybp16+bn14PsEFAJKDv8Ilf6f//7n325nnvuOfPggw9aA+zBBx9sjcKoKHfddZcdE6rWVlttZY956XiBIZmhMhilsbm4vPZCJf61bt3aMgF+MfzCIGT63HTq1MmvRWbS/ONEBzAOCDuSTLH7zoqJ8iK5QDCgG2+80aAKsoyDdCQhnBdhRqiaMCOcG4cOHWqwi3Xs2NEMGzbMsGwFqsjWZDPov8ohkLsJNa2pWBEITsPL0+FPRwePmZYeMmRIzBAee+yxmGn45s2b+9PXHAed+dw0PNPoQcJvx7UjNhd76ZFHHvGn4eXF9vbZZx9PmJCfr0uXLn4VyabVhUn4+Wnzsssus2US5ReG4wmT8fMz9Y/PkeuXGJdtWfyfmHZ36fgv0TdhSjaNvr7//vt+3/QgewTUDyh7DIu+hmQMSL7+XosWLTxZguHJLE/CcUycONHbfvvtfYax8cYbez179vScr5ArVBkGRBmZGvdgYu5l51ckDu/cc8/1RBpx1SZd20V5xxhgQOedd54tk4gBcQFmKQblGEdEWYTriQrot8WBzNR5MqXvif0npm8iEXr4LynlFgH7uZKbr6QIVIgAs0LMlO2www4xK9IrLJTGxZ9//tmqUag2rEFjqj9dwrj85ZdfGvxzgrNtFZWX18eufaM9506QKD9qHePFfwlVVFWvRChln6YMKHsMtQZFQBHIEAE1QmcInBZTBBSB7BFQBpQ9hlqDIqAIZIiAMqAMgdNiioAikD0CyoCyx1BrUAQUgQwRUAaUIXBaTBFQBLJHQBlQ9hhqDYqAIpAhAsqAMgROiykCikD2CCgDyh5DrUERUAQyREAZUIbAaTFFQBHIHgFlQNljqDUoAopAhggoA8oQOC2mCCgC2SOgDCh7DLUGRUARyBABZUAZAqfFFAFFIHsElAFlj6HWoAgoAhkioAwoQ+C0mCKgCGSPgDKg7DHUGhQBRSBDBJQBZQicFlMEFIHsEVAGlD2GWoMioAhkiIAyoAyB02KKgCKQPQLKgLLHUGtQBBSBDBFQBpQhcFpMEVAEskdAGVD2GGoNioAikCECyoAyBE6LKQKKQPYIKAPKHkOtQRFQBDJEQBlQhsBpMUVAEcgeAWVA2WOoNSgCikCGCFQZBsQe3tOmTTNz5swx//zzT4ZwaDFFQBEoJAKRY0A333yzufzyy2Mwuu6668xGG21k2rZta7bffnuzww47mAkTJsTk0RNFQBEoPgRqFl+XKu7RzJkzzYIFC/xMDzzwgBk8eLA54IADzPHHH2+WLFliHn/8cdOlSxfz7rvvmlatWvl59UARUASKC4FqnlBxdani3px44omWAY0bN85m3GuvvQxDmDx5ckzB1q1bm5YtW5oHH3wwJj1XJ7fffrsZOXKk2XDDDXNVZUb1rFy50tSoUcNUq1Yto/JaqOoiUKtWLfPyyy+b9ddfv2gHGTkJKB7JxYsXm7POOis+2Zx22mnm3nvvLZeeq4RHHnnE3HrrraEzoE6dOplnn33W1KlTJ1dD03qqCAJnn322+frrr80uu+xStCOKJANatmyZ4csPhz/qqKPM//73v3IAY5DeZJNNyqXnKqFmzZpmgw02MHvssUeuqsyonrXXXts0bdrUbLnllhmV10JVF4H11luv6AcXOSM0qsYbb7xhxcp27drZmS/UoQ8//NCC/f3335t//etfBgmlR48eod6AJ554wpx66ql2Zi7UjmjjikCRIhA5CQi16pxzzjEfffSRZTr8Io189dVXZtdddzUvvfSSufvuu61a1rdv39Bgf/XVV81xxx1n2//ss8/MpEmTQuuLNqwIFCsCkWNAtWvXtjNbzG6ddNJJPq5///23PT7yyCMNdpGwVZL333/f79u8efP8Yz1QBBSBMgQix4DKum7s7Jeb/UEKgjbffHP7i50IwkYSBv3xxx9+sxjKlRQBRaA8ApGzATGEhx9+2DRp0sSstdZaZs899zTvvPNOuZHhE8SUfViEZzYm8FtNTfP7778bJ6GF1R9tVxEoRgQix4AmTpxoGUvjxo3NhRdeaH2C9t13XzNixIic4IsT42abbZbyDxVr/PjxSdtEAloqV52X0G+//ZY0r15QBEoVgcipYPfcc4855JBD/Jd/2LBh5oorrjD9+/e3M2PZSj1du3Y1Bx54YMrnAQmsYcOGSfPBgFbI1ZPNatsUatjGG2+cNL9eUARKEYHIMSAMukEmgw3oqquusgtQcT7cYost0mIgyW42Dn2bbrppsst+Ou3igZyMUMG6mOrmJ+OZ9+QvaBNKVkbTFYFSQyByKhhG5tdee63cfbrmmmtMz549Tbdu3QzrxcImGM5OppqoYKuXSMCQlBQBRSAWgcgxIIzLL774ol1q4ZwP3ZDuv/9+06FDB7PffvuZjz/+2CWH8gvDudr8Y1aK9FNXeuBm5ULpjDaqCBQpApFjQMcee6wZMmSI9XTG2zlITMU/+eSTdiU8jolh0ooVWICMGSSzYC1FClIJKPd3g9nFH374IfcVa40FQyByDAhkiAeEUfeiiy6yvkCE51i0aJEFDRsOITree+8907t374IBGd+QY0AHiQz0lkhByoDiEcr8HG/4bbfd1q7Fw+bH8emnn26+/PLLzCvVkqEgEEkGxOJTZr5YCIpnNNPmzDARGoOVv+eff77ZcccdTefOnUMBlUZhQC1E8llnTQ9UBcvNrejevbtd63f44YfbNYEsxWHt31tvvWUOOugglYhyA3PBaonkLNjee+9t49/wMG6zzTY2GiKzUkhBc+fONU8//bR55plnDOuxWCkeBsGARov61Uum4WepBJSTW0DYEe4tjqh9+vTx6+Sjg2q+2267mUMPPdRMmTJFw5P46BT5AQHJokQS+8cTBuQtX748abf/+usvTyIkemIrSpon2wsS6sATVSBpNfXr1/fqy2oR4fAEfPMklGzSvNlcEBXE++6777KpIjJlJcCcJxEQkvZXGJTFWiJh2jyXXXaZJ9EIYvLLR8lr06aNJx8rmy6StCcqvSfqvCfuF/aXC3feeacn4X29ddZZxxMG50nsp5h6onAikzGeSIhF3dXISUCI3PgBVRSAizhBLFS94447zNChQ0P5BAgTNL9Ky9eZGuYX+S0mFYyg/XiOE8C/kISU2r59e+suUdl2Wcoye/Zsc9555yUt6mIzTZ061S7RQRqOXwiM7ZBYUW5pzDfffGNeeeUVK1GjwqHKjx071kZTGDRokNl9993Nm2++aSMwoOLzXCnlDoHIMSBCsLL2C6fDighfIQyUYZEzQj9kVlkRqPvy5WF1pVy7qDCENAmDYHxsGkDolMoQjASmwRKcZIRnOkHoYDCVIWyKn376qWnWrJktxhKf7bbbzlx77bX2nKB3zLBW5HhamfY0bxkCkWNA+AHBhObPn2969eplbTx8tapXr25tQHzRRo0aZYgZzZctLHIM6DPLfopLAqpbF8+kcIgXOZNIfaJH2A5XJPmSIRNG0aBBA5/5UAe7q9x00002rAvP2GGHHWZuuOEGLinlGIHIMSDiAOHpfMYZZ1hVbNWqVeUgYS0X2/LgkBgGoeLw94WpbZqbv8QdsbgY0NFHH23++9//hqKCodIgXVSWmGpn66WK/Ltwdfjpp5+sMboy9Tdq1CgmOwZtPmTXX3+9/ZDB1Jh1I9BdRev/YirRk7QQiBwDYlQ8jMxwYWf59ttv7cNCjGiWaRCILOxFn076GSGsB+YDidF89UGR/D/44IMNf1EiQvAi2V599dVW4o3vOx7yEPkc8VwEyfmLBdMSqVYXX3yxtTe9/fbb5oUXXjD/+c9/7DKfRKFfgnXpceUQiCQDckPEB4hpdoyDPER8IYuBHLO5XdjPPuIL1EoWpS5cEyCtGPoX1T6w+wn2GCSRfv36xQzj119/tQ6q2JbYjglC1YtnONh6UtEtt9xiiC3OJpgdO3a0fwS2YxcUJG7UfaXcIBBJBoTRkED0LLvg2M1osEvF1ltvbVfDM/uVia2BbUzwok5FfFlZCpCIHAPiGnEZeVyDaaQrVR6BI444wgwfPtzOULHWD1UJJ1RmvViewweJGE2oTBDMiPAtzIbiM4bU/H//938pG8ZIjjMr5XFm5ZmgXoLfKfNJCV+lMkSOATEbkk9HRL58BLZPRdh4ki2vCE65TxUj9FSRhA5VCSgVpGldHzhwoBHfHOtoil0GrJkZ23///a13PAzJ0QknnGBef/11Q5kBAwbY2TdUqVS7pVAvM2F8xHB4hOkQ9I7JDaUcI1DUXkoJOhcFR8RPPvnEE2XQu8TUsI5xcss8nMLyQaXkiBiPn0iVntgA45PLnct23Z58WMqlp5OAk6dIuulkLbo8UXBEjJwyiyMiX7aKpmOdI2JFIVNzzMdjquOrzET3DmtiAXExKBXFZNaTjBHgGYifwUpUGVsTZ+oTxqTGuuuum6haTcsBApFjQM4RMdXYw3RExN7ztXSQcKwbyO8hYgVSBpTqjun1UkQgcjagKDgiBpkNO2PcJMsxjlYbUCm+XzrmFAikZED4QbAKmTUwxbDJfRQcEYMMCEloZ4kJtIUyoBSPol4uRQRSMiDc9vGaxQcCBgQjwj09ncDt+QK02B0RUcHqyeA3FRvQF0W4FCNf90XrVQQqi0BKG9DOO+9sVyETY4WpSIK/Y9Dr0qWLee6550y8p2llO5BNfueICGPExZ/fsL2gGQ8S0OFi9xksqpejoFTk0vRXESh1BFIyIAcQC/Rw/iMGLyoZLzrSEMsfWFn92Wefuax5/8X5EFd5nA6TRURM5iSY985JA+yI8aysgh+wZk8w2BBSkczTFqL5KtvGPvuIX3m1av4f/jlI6DybhGmtDL388su2HpbyJCOWYNAe68ugevXq2fVhyfIH09EaKMuaslwT7x91//ILgV6iTSlVsPjhccPYjWL69OlG/Cvsuht2CYU5XXrppYaNAvNJ+XZEzEXfYUB4QPMH/SqLUut7f9kwrWwnrZQ5As2bN7dLLqgBhs6Os0RJZHEyRGzofBGmBzQCpdwhkBYDWrhwoV328Oijj9plChLtz3qIck7sZeipp56yHqastG7dunXuehhX04033mi2FsmHUBvJfIGI40IIBeLehBGQLH4Twh4iCf0l48BzWhlQ3A2t5CnP3nHHHRdTCuYDY7rvvvvyyoBytf13TOdL/CSlCkawb9Ssc88914YiGDNmjF2oByNwzAcMcV+HiNOTT4qCI2I8Axov6lixheTI5z0qdN2oYkgmblcMIhiilsWrKKyS50MZJKR5IimiykkYXyNe7MHLMccs93jooYf8tLvuussu78BRkdnZ2267zb/mDr744gsbLJ/6acet2HfXeVZYWMtW30zsYFuNVwtZGkSsa8weLMbN9zvm+laI35QSEOtuCMaUauYLaQRdmS9UPsk5IhZzREQknaFigP5aZsCIiOiomAzR3qR3jDenwNvYiN2i2m5tTbUdWzhIcvIL3sR/QgqCXNjV+AkSIiWyhVOQ8Csj9Ooll1xiF7ryfLFiPpHnNB8/Zw9KN2xr165drXp4zDHHWDsVi2JnzZplozigQhK7CsaJFOeYGMH1salic5oxY4YNA8L6NTbeJBwJwkBVoZQMCCmHm5Fo2p0X6oMPPrCBv1iBnG/mA+hRcETkq/amMJ74LfOSLV4t9MO0auw4s+rIroVudnV7tWuZGp/OMNVkN5NM6Oeff7bmAMryAiMNjB492ixdujSjMLN9+/Y1ErzedgVmsNVWW1mXEyT8iggpK52wrexdx0p9iJlazBMwQsLIII0ReQFm1qlTJ5sHTYJ3jVAgxD264IILrDTnJC8nAWEgrwqUkgGxpIE9uAh5EE+kdejQwYq6hYrFEwVHRBjQa2v8f8DsGpGGkISKRgJaM6sTfz8Lcv6XBAhbJOH6M+M/1iWkZ8+efleJA8XWTNj74m1DfqYKDg455BD/KuFbOJ88ebKfluwg3bCtqHWOeHZpw82MYd4glhUMJxjHmjAgLvAZUhcSWpAYf5VmQEwZs+CTqWxEVkREZ+NxQPD1QUwkBg+iYiGp2B0R4xnNEgGHqfj49EJiFmyr2okSYmLBwnBUsPZ7mmpt2wS7U6ljYvIg8UDYfgi/4eL/VKqiNZmZ2g8SIVfTiQeVbthW7KeOmDrHbcTFr4IRMYuHZBRPTLQQTI0JIGJWBymRehi8HqXjhBIQMzUYvTA4c3MdcMGBkUZcHrbI4TgM4mbCjPjLFSEOX3XVVSmrQ53CHykRwcAd0cfrJXQsVDQMSLYtqjboItfFSP1ia2SFekXknsegDYgXPVH8cOI6BYnIivEvfPB68DidsK2uL8Fy7hjDNIwGw3d8Ps4ZKwZu+hSk+EmO4LWoHSdkQAzilFNOsX/YeJhux88nSoRNAOZJKM3KEDMVsildyiIEvGcLmERETOj+IvO8KHNff8pDht0CKhYbUKI+V6U0Fz6DWTAXriNZKFaeb6eGwaAmTZpkzQqp8EgVtjVVea5jXyXIGfudYXiG0CzwZWJWjyBqePezHpNwtI7SkdBc3mL/TciAuCnYfphpYuoPMfLf//530rEwg1BshDGRjeacuJ5u/2AqyRhLsA5sD8n8kJCAdpR1YOILa+qIeuoYULFIQMFxVMXjnXbayRAT6sorr7QGZfDnpSYtnnixWVKEJIKtE7WIaIipKBdhW5n5wthNxEb6Kju22vCxzHbh3AsRGhZ1j7Ru3bqZRx55xI4pVf+icj0pA2JLEpwKuSEcV0TFyID69++f0fYvFY0z3WswoDPXLMPYUwLl7yaMCCFaJaB0EcwuH7OxOA2yiyr+NQQkI5Y0M0vxxMuPfxD3jHLPP/+8kS2Z47OVO89F2FYmbiZOnGhk+2grhaF2YYDGvwgjN8Q0Pv2W7aMNM3YIBKh+gwcPLtenSCaIyKeUAQIym5F0b3iZnvVDscr0qiezYJ6oZJ6I7Rm0VHERMUiWzN7wFSNR/qoYez0JKO/xWxGJyuzJNs6eqGAVZUt6LRdhW9mr/scff0zaBn0TYcATm1XSPPEXohCSNaEElIiTyuB8QxkiLVOVfDnC3qiNfjFTUIzb8oAjM4SXWj9omY4Xw7VS4RDgmUACSkVMFKCCZUqpjOLp1JtqJhnpqKJtqdNpoxjzVE+nU4iELVqs9l5lZ0r0X1zGMfCFEXe52FfDI863E7UL7h70j1IVLJ2nTfOUEgIpJSDWsqAno38ibWA0Y3bp3XffNU888YQ1VIsIWjDMorAanlmw8aaWaSxLUJUBFezR0IYiiEBKBoQ1HrdxdqOEWEyHYQyHMMRWpudZH5Ou70S2GMEAabeYV8MjATUT5rNUBotojZhZTf5UAsr27mv5qoZAShUMXwq3DmzmzJk2IJnzm+BLjzTEgtVCURRWw7Nn/WrPH2NXWXcTFvSAKGRVyYGsUPdb26naCKRkQDhCseaLxXdMB+LYh38NwcgIz4obOcsxCkVuNXyq9sLalifofYvfCU5xr8s6MPaJVwko1V3T66WGQEoVjBgo7MnNolOIfbbxq8BTGnWssqEwbSVZ/Cv21fDxDAisCACxQBanbpRkL/ks4NCiikCkEUjJgBgd3sS4i7Ny10054kHKThmFlH7oS7GvhocBIQ++K0bo9iIBwYAcsTxESRFQBMoQSIsB4YMQjH5IcdzGw6JiXg3PSucVAsxwUbmwjxF+wZEyIIeE/ioCqxFIiwEx5Y608/333xsMrPGUKFZQfJ58nOdjNXy2/UQCggHdL3afBmskoA3l/DYxQl+hElC28Gr5KoZASgaEjw+hOVC/mHovtMoVNbwT2YDwf+ZPJaCo3U3tb74RSMmAXn31VRv4iSn4VO7i+e5sIepnmYkLbl5Re8SRwd8nnhIxIIkBaPrJ4tRaeZCAaI+92uIDsMf3S89LD4Ew98ZLF+2UDAjvZwzPpcB8AA11EveCVIQPFBHr4gmGsJkk9pV4QM+KCoaaiOsCoTi4hi+Qi1cTXzaTc5bE9OnTR7f7yQS8Kl4mChJ3SgbENDwzXkTyjzdEV8X7R5iF+PCzicbJ7FYw3KbLA5NZV06ashZMjNAQke9cLCB2bMglA7rnnntsG/pPEYhHAB++YqeUDIjwrPjeEAGQwEhIQ6wyDhKR/5VWI8As2Fw5PFVUrlYiAUFIj61+nG+miGGa8JpVKaavHaD+UwQyRCAlA2JfIreZG6FZE5EyoDJUkIAcuQh8SECnyHKMleKMiASkpAgoAqsRSMmAWPdFQG+l9BBIxICQgLqviZA4IC7AeHq1ai5FoGoikHItWHDYGFCZDcO6jhFWqTwCMCA8oXcWG5CTgIIhORIZrsvXoimKQGkgkBYDwgGRgNh49WLYYlkGcWnZtVEXWMY+KDAggpHdII6HzgitDCgWIz1TBBwCKRkQns+dO3c2BCZjKxIXeoMN3e67776MtsN1jVfFX4zQb4qtp6dYfIISEOboOvKnElBVvOs6pkwRSGkDIvAXIVBhQHhDs3UJdMwxx1ivaDYmDMaLzrQjVaUcEhBmaKxmQQbUXYzQh8jf+wl8h6rK2HUcikBlEUgpAc2ZM8f6/8B84onN1CSSv926J/5aqZ4jATlyKhhbqYyXKXgWqBJAX0kRUARWI5CSAbGrwDvvvGP3iI8HjZjQvGTq11KGTHAWzDEgIkriMz1DVDNlQGVY6ZEikFIF69ixo3U+xDuYjd7YvhapiGBkxInGSZHlBkqrEUACOlpUrQ6oW2scEYM7rSoD0idFEShDICUDYuaLrWtPOukky2wo2rt3b1sD65Buu+22str0yMCAZuNwKOpWozVLMYIMaMEC4iMqKQKKAAikZEBkatmypV2kOW3aNCv9IPGwLqx58+ZcVgogAAP6XBjQ55J2ShwDelmiJB698JdAbj1UBEobgbQYEBBVr17dYHTmTyk5AomM0KynQ5Kc9vsyU2vlPzagv8ZVSo6hXikdBFIyoOnTp9ttmHE+JOYMe3Ih/XTv3l1DQCR4ThIxILKhhl32+ze2BHYgZUAWCv1X4ggkZUCEj7jkkkvsLhhghDcvfi1PPvmkhezCCy80I0eONEcffXSVgvD11183bEWdisCH4GXxBAPaTzyh68mfmwUjDwzom2++sdmxA22zzTb2WP8pAqWMQFIGdPLJJ1tmM2zYMNOvXz9/i2GWXrBbKivge/ToYfcLY6+uqkIwBsKOpKKxY8f6XuHBvDCg+sJ86kpiPANy+TR6oUNCf0sdgYQMCK9nQnBcffXV5tJLL43BiKUYBCkjUP3OO+9shg8fbqoSA2rcuLHhLxXBoIM7Xrj8+AGNFqdD6KI1RmiOkYCQjJCZdCoeRJQUAbEtJwIBuw/+PmeffXaiyzYNdQxJYcqUKUnzlOKFoA3ILcUAB7yh9xC4OwoTUgZUik+GjjkRAgklIF4Qll4kWn4RrGSrrbaySzGCaaV+HGRA8SrY5eIbBA3S5Ril/pjo+NcgkJABEevHrXqvCCnyBJceVJQ3X9dYCAvDJExsMOxFvtpLVS8MCAUOVhNkQCzHcKTOiA4J/S11BBKqYMUOCqvziUeESwBOkZtttplVcZDYiFd0/vnn26BpYYwDBnSm7IjRU/6CDIg+Oko0e+au6a8iUEoIJJSAAICZmg4dOlSIRRgv0rx588zee+9t2C4aXyRmrZB8OCfWzty5c83TTz9tnnnmGcOeZk2bNq1wDLm+CAO6WuQfJKBhASM0EhBg15M/lYByjbrWF1UEEjIgVre3a9fOsPleRYRhFWZQSLrxxhut5EOcojp1CPFVnq699lpz2GGHmYcfftgMHTq0fIY8psCA/lhTf1ACql+/vt0v7D1T23SYPz+PPdCqFYHoIJCQAfXs2dPwV4z00UcfGYKgJWM+9JnZJxbP3nHHHaEwIIdbkAE1bNjQ/CAXukq4MmIoKSkCikCSafhiBgafI+ITpaLXXnstlDhFQaN8kAHhM8TfVFmoihe17jSS6g7q9VJAIKEEVMwDJ/4QTGi+qDG9evWyNh5UQRbLYgNiucOoUaPMuHHjDGpaoQkGdLdYe94SZ8T4OEnspIqTJ0Sg/1RuDoXuu7anCBQagcgxoFatWtmtgc444wyriuEwGU8HHnigmTBhgt3NNf5avs9Xe0L/Y76Thg5dE5DMtcmsnWNAGMtLYatrN3b9VQQSIRA5BsQgtt12WzvDxY4d3377rZV6ePGRMNg6GokoLKJPr4maBQU9oTmHAV0p0/Pz5frXX39NkpIiUNIIRJIBuTuGisM0O6pMsTgiBm1A8SrYDjvsYEaJaralLMfwPv3UDUN/FYGSRUAdEXN864MMKF4CIoLkdJF+xggT+lQZUI6R1+qiiEDkJKB8OyISbuTXNPZvx/aUyE8KFayfLDp9RRhNvAQUDGH72WefRfF50T4rAjlFIHIMKN+OiMT5YfePVMRUOjNZ8YQE1FRUrEnCgOIlIMJ8rL322nYanlk8GF29evhGKykCpYlA5FQwHBFPOOGEtBwRx48fX+m7SpA1GEuqv3XXXTdh3CAkoPNlIcbMBBIQy0WaNWtmThMJiQUis2bNqnT/tIAiUJUQiBwDipIjYrwExINDEDdA313+E1lSSREoZQQip4IVuyMiEpCjeBsQ6fvuu685VdaoQfNkvzVW7ispAqWKQOQYUBQcEduIDYjNCRNJQJ07d7bp2IoIa4uqh++SkiJQighEjgFxk4rdEfFp2YCwk/krIQMiLAcxtfHUJpjaSy+9ZPDqVlIEShGBSDIgd6OK1RFxT2E+i6WTiVQw+n7EEUeYuRMm2tmy0aNHKwNyN1R/Sw6ByBmhuUPFHBER1epX6SOLMRKpYPS/a9eu5gdZPHurLFr97rXX1RgNKEoliUDkJKB8OyJm+xQQT9tRsphFBHzrclxP00xW7UPnnnuuDTHCNL2SIlBSCIgdIlJ01llneRKF0Vu+fHnSfstMlHfAAQd4Q4YMSZon2wsS28e79957y1UjjoYIP/bvjz/+KHfdJXz55ZeeqGh+XlHF3CX9VQRygkDLli098ZvLSV35qiRyKli+HRGz+fqwPGOFeEh/K2FXiU+E13MyYhFtcAr++uuvT5ZV0xWBKotA5BhQMTsi/v777xJsw5grzN8GT+lUKhWqV7211jL3ii1o0bRpZsCAAWbJkiVV9mHTgSkC8QhEzgZUzI6IMKCVgvADstq9gTCgVMSU/JnChO677t+mr7Cu6ySGNTt5vPDCCzacbEUSVKq69boiEAUEIseAitkREQbkKNG+8e5a8FfsVNYAfdlbb9nk2bNnmzbbbS8xg4xp0HF/M2LECCtJobIlm1UL1qfHikCUEIgcAwLcYnVEDAaaT5cBrSUqGAH0H3jgASMGdsNSjotlndhFopYdJlP0LVq0sM8Te59tt912pkmTJubggw82rVu3Nl999ZX1om7UqJHdnBG7Ey4KdevWtQHwo/Qgal9LE4FIMiB3q4rNERGG0EqWYewuf/MaNHDdTPlLNMdTTz3V7up68sknm8tllfyldmvDsqIvL1pqFr4/3XSSBaxPPPGEvbCrtLNIJtzmyRnMBwmpurgB/F2zltlxpx3tltW4BcC4uE4MItQ6pEgYH0H8ZXbDSlhgiUrIObt5cJ14RzBEyvLHRpQbbLCB3ykYHfllts8QR2mTTTaxW3oTqoR0xoVflHNHwCZGnfzy5/LQx2liA2P32AaCG9coS71s/y0znrY/rk9cd06e1E+d7MdGXvpZEdEmZZw06dbu0R7j5jppHFMnbSOVEkqFkL+piIkIyrn+pcqfzfWffvrJ3lPu56BBg+wmndnUF0bZSDIgvvK33367efLJJ+0XnxsO8XJsLXGXCUrPhoTpSiFB4KdOnWrrDaYlOuYhXbx4sX1A3XV25Gi7zrpiATKmTZs2Mddcnop+WSlP+7x4Dz30kCH2EQ8yL8PABQtNw1WeqVurzLZ0wrKV5qi//jGtN1zLr/aQmrXNo3/8ZXb8eq75vfpqvyJeoLeWLDdP1aphei363fRZ/KaZU6PsRZ2wdLl5Tq6NXKuWX8+Zy/82e/39jzlhvTp+WtN/Vpm+y1eac9eubRatqZuLj/6+wrwk5R+rU/Y4XSR9ayT97b9ubb/8lvJyDln2tzl3nVrmD2Eiju6Q/jaQ+raX/OfIteWBa3fLtedq1zDPS/2OLpW61xZGcdk6ZXW3kL6dJX2m/MpA+buk/EN1apj3a5aV77vib7OltDV07bLxtvx7lTlT0gfGladv9WtUM80/+NCcFRhLLWn/tj9XmjvWqmk+DWA5bNlfYgesZq4K1L3Xyn9MT/kbEOgv5W+WcXBP3g6M7XzBF9+M4YF7sb+UPUr+zgmUry3lh0v7zaVv7336uTlZdlv573//6yCyv47JxiQW2UnZE1NkHUvWnXw7IvKVZRfTVLT++uvbL7b7upN/jz32MJf/tdx+vd8+6ij/y5+qrvjr1MkM2cCBA+0XnS88QewJwL/r5MnmwQcftF/q8btvb/7vu+9M7YULrbTD1/e/IpU0kKUgS5eskP9lhFr35YpVZob8zhGGw1IRRxfJC/OzbIK7eDmP/mqaI/n+lPTFi5e5JPO5HL0hxvIfVy4zZanGjJW8b//tmcXLysp/ImkLbPk//fKwyQ+l/K+//Sl1l9FcSftWXrsVkn+RXAv2e5Zc+2TlKulvWd2zpe7NqPuvslq+leq+WlP36s/R6vq/lLSf4sp/LuX/pvwKt4etMT/L+VxJp/3gfsBfS/n/rfRMHfIvLmsPdkZ7P6/8MwbLbySNvsbX/Y3UHewv5al7/l+xY5sn+Rjp4uVlfZsvbceX58Wl/Bzp2wIpAUMLPoty2Up6/BYzVRORs+zOFnNP1/Tt7LPPNjNmzLB7fsUD7rqPiM3WzO3bt8/bzqh77rmnGT58uOE3SIjFiPOoM4UkxswfagiqEswKVwBUEvaiR0X64YcfbJqTGFGZnCqEqoFKRn6uI4UhefEV5Zy62d0VNwHSYYrYvBgrbcK4aZe83BfSyUNe6nbtOBWJx4408qCCffzxx3bmD2O7S6deDPv80n/6QH0wWo4hzmmLP6f6pcKdMbnyHNMe/aZeiDT6RZ2McebMmVa9QUVMRYyPcq7+VPmzub506VIjDq12e6fTTjut3DO3yy672O3J+S1WipwEVOxbM2PDCIN4afiDeFGCLwu7cSgpAsWIQOQYkHNEhONXRPnempmv9uuvv26Np8F+jBkzxkoAYfjwIGksFHUsrPhC7HmPapqJ7S2IYSbHSBxIeBiLwyBifHPPg0b6QvUD6Y2x9+7dO6ZJJNpip8gxoGJxRLzrrrvMg2KLQQUI0gcffGCYMkf9KTShgvAgIpqHQdjnCLIfxkvIpACTAKhqYRCB5bjnYWwyAANCFWvbtm3M0LEh7rTTTjFpRXeCDShqNGfOHK9jx46e6NvYr8r9ySyYJxJQKMOSYGOhtS0xpr127dqFMm4aPfroo71nn302lPY///xzb/vttw+lbRoV9wnv/vvvD6V9sTt6MnESStvZNhr7+S469pi4Q8XqiJi4t5qqCCgCyRCIJANyg8FHpti2ZnZ9019FQBFIjUCZN1rqvEWTo5gjIhYNSNoRRSACCEROAsq3I2IE7pl2URGoMghEjgHle2vmKnNndSCKQAQQiJwKVswRESNwv7WLikBRIRA5BuQcEVOhmG9HxFTt63VFQBFIjUDkVLBicURMDa3mUAQUgVQIRG4xKgPC65PdRN944w1/AWFwoITjGDx4sN2BNJheiGNWrbOaPixPaGYI8ZMKg8L2hJ47d64Ja91b2J7Q4pxrmjdvHsZtz6rNSDIgN2Lc71n1jQs+a4EIGMU6qI033thl0V9FQBEoYgQizYAqwpX1UKzTCmNRaEX90muKgCJQhkDkjNBlXa/4aKuttjInnnhixZn0qiKgCISKQOSM0Omi1b9/fxsLOd38mk8RUAQKj0CVVcEKD6W2qAgoApVFIPIqmIQDsCFHoxB8qbI3R/MrAlUdgUgyIF2MWtUfSx1fqSAQORUs3cWoSEZsc0y4DiVFQBEoTgQix4CKZVeM4ryd2itFIFoIRE4F08Wo0XrAtLeKQEUIRI4B6WLUim6nXlMEooVA5PyA8rUYFZsRG9QVgtJpK508hehrrtsotnGxGaHbLDHXY42vr9jGHt+/UM4FlMhRLnfFkK11vP3228+TnT293XbbLa87WkyfPt0TBuptuOGGXpMmTbyrrrqqHPaF7E+wcXHc9GQzw2BSTo/TGXuwwXz3R/ZR92THUE+W63iyQ6w3YMAAT3ZhDXYhZ8fFNvacDSwHFbHHeGRJNgf0YEYTJ070xo0b54l9yJON+dIez5tvvulJYHvvzjvvtGX79etnGRH15Jpkq2Nvm222sQzoww8/9GA0suVwDBMqZH+C45MNFj2R/vLGgNIZeyH7M3v2bE+2j/a6dOniTZo0yRs5cqQne5l5ffv2DXYjJ8fFNvacDCqHlUSaAWWLg4Qv8Hr16hVTjWzk5p1yyikxaZU5kV1BvWeeeaZckSFDhtiHXDYP9K8hAfH1lR1NbVo++uM3luRAFu1aaWzHHXfMmgFlM3bXvVz2x9UZ/3vttddaBhT8WMnsqichVDzZEz4+e1rnURl7WoMpYKbIGaFzpacSv+XTTz81spleTJVHHXWUEWkqJk02nDOtW7e22w7Lxn/mxRdfjLkePGFnTnmIg0n2eMKECebQQw81our51zp37my3Up4yZYqpTH/8CnJwcNFFF5kWLVqYHj16JKytEGMPNpyqP8G8mR4TroXwLcFdVNldlC2lg3bAqjj2TDHLV7mSZUAENYO22GKLGGyJKbRgwQI/0NnNN99sTj/9dCO7bpqHHnrI7LnnngYm9dxzz8WUS3VCe/F7tru2ZWdLG2SNOlyaqy++Py49F784aj722GPm7rvvTlhdocbuGk/VH5cv298jjzzSEC3h1FNPNa+88oq55ZZbzKhRoww+Zo4BVdWxZ4tdrstHbhYsVwAsWbLEVhUfvIy9vZFgfvnlF8PGh8OGDTO9e/c2YrOx+bt27Wp+/PFHc/HFF1vpiTVoYjvyu8WsCg+0qGE2jbJHHHGEoT32jA9S3bp17enPP/9s2+Kkov5suummweJZHRMvSWwe5vrrry/HGKn4t99+K9jYaS9Vf8iTK2rYsKF58sknTfv27Q2SKdSpUydz6aWX2uOqPHY7wCL6V7IMiGBlUPwUrDsn2qIYK+2LKLNjZtq0af5tQ2V56qmnrPpE4vz58/1rHPAAuzQn5tNejRo1YvLxteVPjOk2eBoXXfsuozunP7mk888/38hMnJXuEtWLwyfjKMTYaT9VfxL1MdO0MWPGmOOOO86I/c+G9uXe3nTTTebwww83Y8eONVV57Jlilq9yJcuAGjRoYDH99ddfY7B15+uvv74N9cpFRPNERCjYtm3bGplF8i/DZK688krTvXt3P40D2nN1uwuLFy9mEsDIDIy9Tnp8HndOf3JF7Bhy3333mYcffti8//77tlpsUNhF3nvvPdO4ceOCjj2d/iC15IruuusuGzfbSbWo1dTfrVs3gz2O+woV4r4Xeux2YEX0r+QZkJNU3D3hHFUJpoA6Br399tvWCO3yuN+gQdmlJfvlAU/UFvmRRBxDTJTH9SdZ3ZVNnzp1qmV8ffr0KVeUl/GGG27wg7sXYuzp9OfCCy8s19dME2Tq3UpcwfKoybVq1TJvvfWWadasmb1UFcceHHMxHJesERqGwIP28ssvx9wHZsDEMdGmuV0GENnFZ8f/Gz16tDnzzDOtxBBTuIKT/fff34jzm2/cJitts3tGmzZt7Bc4VX8qqL5Sl7D9zJo1K+aPrz32J9LFDcHfYaEQY0+nP5UaYIrMGPq/+OKLmFwffPCBvZ88F4W874Uee8ygi+GkgFP+RdfUiBEjrO+H6P2e2Go8MR5bR0R5OP2+iirlyYtpnRXF4OyJ0dITdcgbNGiQnyd4IOFCPJzP4klUHOt1e8EFF3j4ukyePNmT7Xs8sT34WdPpj585xwdDhw4t5wdUyLHHDydRf+LzZHrOfRbbm72nMjngyfZOnqwx9IQxeaLy2mqr6tgzxSxf5UraEVFsHt7AgQMtY+CBxBFQ7AIxWPNAnnDCCTaPfDA8+UJ6p512mmVYMRnTOHnhhRcsM6MtUas8md73xP/EL5lOf/zMOT5I9MIXcuzxw0nUn/g8mZ7jbIgTqOyYYhkR91Vsed6MGTP8Kqvq2P0BFslB5OIB5UNqFE9kw1Q4viHJiFkoIjFuvfXWvq9IsrwVpct9t0bORo0a+TNf8fnT6U98mXyeF3Ls+RxHfN24W7CZITY2/hJRVR17orGGkaYMKAzUtU1FQBGwCJSsEVrvvyKgCISPgDKg8O+B9kARKFkElAGV7K3XgSsC4SOgDCj8e6A9UARKFgFlQCV763XgikD4CCgDCv8eaA8UgZJFQBlQyd56HbgiED4CyoDCvwfaA0WgZBFQBlSyt14HrgiEj4AyoPDvgfZAEShZBJQBleyt14ErAuEjoAwo/HugPVAEShYBZUAle+t14IpA+AgoAwr/HmgPFIGSRUAZUMneeh24IhA+AsqAwr8H2gNFoGQRUAZUsrdeB64IhI+AMqDw74H2QBEoWQSUAZXsrdeBKwLhI6AMKPx7oD1QBEoWAWVAJXvrdeCKQPgIKAMK/x5oDxSBkkVAGVDJ3noduCIQPgLKgMK/B9oDRaBkEVAGlMdbz86b7KxZEbFTakWU6rormyrfqlWrXFb9jTgC6d5Lnj2ewWSU6plJVC6TMonqcWlVkgF99913dvvkDh06mESAXXjhhaZBgwYOg7z88pAceeSRRvZ/L1f/Tz/9ZLp27Wo23nhju9Uz/WHb5yB9+OGHplevXqZevXpmm222McOGDQtetsep6vnjjz/M+eefbzbffHO7DXTjxo3NNddcY2Q/+nJ1VSZB9lW3+Moe9/4v21ofdthh5qOPPqpMVVnlrVGjhrn77rszqoP70qZNmwrLxtf/3nvvmUmTJvllTj31VLPbbrv55/k+ePzxx81OO+1k6tSpY5+LY4891nz//fcJm2XLae77+PHjY66vWLHCXHLJJWaLLbYwG264oX0O33nnnZg8iU5eeOEFv+0999zT3HHHHYmyVTqtSjIgh8Kbb75p/vOf/7jTgv1yk88880zz8ssvl2uTfd/btWtnfvjhB/P000+bG264wYwZM8ZcfPHFft4///zTdOvWzZ6/8cYb5oorrjD//ve/Y5hQOvX861//Mg888IAZMGCA4eU54YQTzJVXXmmGDh3qt5XNwcMPP2wee+wx8+CDD5r+/ftbJrrPPvuYOXPmZFNtQcq2b9/edO7cOe22YNp77bWX+fLLL9Muk8uML774ojn++OPts/Paa6+Zm266yUybNs0cfvjh5aTsr7/+2n78fvnll3Jd4D7ddtttpkePHmbcuHFmo402snkrGtfEiRNNly5dLEN76aWXzDHHHGP4CGXK/GM6JRJClaNvv/0WvcbbbLPNvLp163o//vhjzBgvuOACr379+jFpuTqZOnWq17x5c9su7Z944okxVd97772eSDWeSGl+utxUr1GjRp5INDZtyJAh3gYbbOAtW7bMzyM33Ntkk008YTw2LVU9ixcv9qpXr+6JdOXXwYE8PBaXmMRKnggDs/iKiB9TcsGCBbbN66+/PiY9XyeMb+TIkfmq3o7F1c9YeaaEofvt9e3b12vbtq1/ns+DQw45xGvSpElME08++aTtk3xo/fQ777zTW3fddb0ddtjBXhs7dqx/TaRsT6RWT6Q/P40DkQS9/fffPyYteLL33nvbZ0+YsJ/MPa5Vq5YnH1I/LZODKi0BXX755UYeUisBxHDdFCeI2YMGDUr6Jy930hruu+8+K95Onz7dqk7xGZEa+PpsueWW/iW+YsI0jTBFmzZhwgRz6KGHmrXWWsvPw9d64cKFZsqUKTYtVT3o/vLyGKSgIMlDbJYuXWrStSMEy6Y6Xn/99U3t2rUt5i4vdgiwbNmypZEXw2y//fbmnHPOMUh5jvbbbz/DmPk6CyO2f/KRMCtXrnRZzLx588wpp5xiVWdUJ77KjvjiCyMw77//vksy8uKVS0OKQEJDmkEV7dOnj5+/ovrp6x577GHzIj3KR8Uvx8GoUaPMzjvvbFVq7hPSbTLK9Nk67bTT7P0M1su9hH777Tc/+dprrzVnn322lW78xDUHs2bNsiYJnr8gHX300Va1RKpORJ988olV1VBJHSERcX/QMrKhmtkULvayIoFYUZUHlwfyiCOOSKvLn3/+uUHfTka8KCJZJbyMiuMYSaIMMJqePXta9QvVBabCQ4sK5m4w4jDifpDQ2SHsPlCqehCt4+1PMJ0nnnjCivEw5mzJMQiY3c8//2xuvPFGs84669iH1dWN2vfqq68aGErTpk2tWooKAH5gBWE3EmnCYEcaPHiwwf518803W2ZDOZgYKikvyO23327mz59v1RHHRHkRsYWg8u6+++62TpgNKgqMyqWh8sIka9asaRna7Nmzbd5U9cNU+/XrZ7D5HHDAAVYdsQXl38cff2wuvfRSM3DgQMsIsI3Q13fffddlifnN9NlC7YknGB9jCdqyGDPPXyLbEOOA4hkNeHIv+cVOGE8i6RjMCkEiL5SonWC+lMeZiE3FXsapYIiokBijrYojX357nk8VzDaw5p98NT35WvpJ8sJ48hB4Bx10kCfSjScvpyeMxorK8jX285Hn6quv9s85kAfE5kPETreemArkRF5uK4JPnjw5/lKlzp0KJg+X7VPwV+xZfl1iBPfEaOrR5yDtsssuFgOXhrqJGsC4HAnT8A488EB7es8993jyonncV0ePPvqobdupSCeddJK37777usvedttt52299dYx7TRs2NAbMWKEzSMShde6dWt7nE79yVQwxi6Shd+uGHhtX8mfT+Ie8gzJJEPCZlDx6VtQBUNF5tmSD6BfhudKmI7NO3PmTD89eID6xz36/fff/WSRYm0Z0TL8tEwOsv8MyiiLneQBs19ovlRhEl8evravvPKK/eo/9NBDhhmIyy67zDzyyCP2y0//+Ko5acj118048SVKtx5Xll+kE8RzYWy+OhG8nsnx8OHDrUHz1ltvtRIckgYzd88884ytDmkICQHpQR5Ow8zMc889Z9U/ZuiCJDYIO6Pm0oSBmCVLlthTJCRULNQzR6gRQSkONRZDO+oSM4oYws877zwjL6pVueTlMmILNJ06dXJV+L/p1O9njjsQpmZatGjhpzoVL2vJwK+x/AFSDtK8MNCYiYnyOWNTxIZozj33XCsFg6fYGq1UymwZxOxaIkLt5H4haaJOd+zY0TdgJyuTqJ5EaVVaBXMDxu7AS85sEjMJqYiZHV6uZIQ6l8k0/tprr21VAOwhYiT0q6dPMAbsO7vuuqut+9dff/Wvc4DdiZdYvkTXuYg6AAAFdElEQVQm3XpcBdjCqJ8HCRUnV4StAfHcEaoYKgpYO5WBMXEOo+Uh5l7AJNZbbz1XzP5uuummMefYv5yK9cUXX5RTa2k3WEakSpufdlAHmzVrZrp3727tf6h0b8hs4o477mjdHmIakpN06o8v487dy+vOnd0umatDts8WNiSYKDYnZqR4FipD1113nZ35EgnSzr6ipjO1j02HaflExIeFmTcYFiq8aBT2g7ntttsmLZOonkRpJcGAGPhFF11k7ToY8+DgFREPdqtWrZJmcbp00gwVXOCBxa8nSBik+Zo7pzG+qk7HdvncuTM8plMPZWE+GFyRUrBT5JOQ2g4++GBrE4EJwEA4l1lBg3EeYzNjcwb1YF+Q8JIR+HzzzTflLgelKGxK2M1ef/11I6qGfUn4SMCI3n77bWvkTmYDTKf+co2vSaio34nKZPNsYVfC1woXgmeffdba2xK1UVEa/eVd4M8R9jZ80iqyXYp6a5m4K4MNEkmce5sNlQwDgmnI1LWdBUE8roiJ8DXlLx/E1wMVjC8kqhaEsxgvqzOWoo7wwpLm1AwMrMwiOYNjOvVgsIX54At18skn52M45eoUNwQrpSHuP/XUU1ZyYyxOTWFMzMZwPV3iY/D888/b2TuMyBAGZLFJxFTBy0k+pMUrr7zSXgMnsIMJ8QVPROnU7xgN/c+GMn22MF4zMyp2MTN69OgYyTPd/vDM8UFgUqZ3795+MbGV2rr9hLgDpGfax0zgiDJMdLhn1qVX9rd6ZQtEOT9fjjPOOMPEqzeFHBN2Cb7m2EX4UqMawCS4kahmEE6MzI4xM8ZLhm0DGw4qlBOTU9WDvQObF7o+ejqif/AvmYpQGSwQx12d999/v1VvsfHQfxgnU9f88sLwtaRPiPxMmwen4VO1edxxx1nVlbI41yHlBKfQXXnsQDBAVCoYDwQzh+Fjj4qfWbQZ5F869fOxAEfu14wZM1zRgv3iusA9Q/2CsTvc+QXPdIgx8AHjecM2x3uAVzTPY9DkQP3M+HHPIJgWKhv3kfuGCcI5Isar0un0IyZPJpbrYi8TPwsW7C8OesyGiLgZTM7LcfwsmGtEpqU9mXK2M1LyUFgnMGYogiSu756IxTaPfGms85g8gMEsXkX1yFS3naWQm53wV3xHYuqqzEmiWTAcPoWBesIo7Yydqw8HSnEhsLMvzMCcddZZnoj89nzRokU2GzMs4hHuithfeQFinPzE8GpnrUQSsbNMzOiJGlrOEVHUKeuE5yoT1dWOX5iMS7K/wVkwEtKpn5kf7peoUbaORI6I3BMwFyZo8+TiH85+ye4j6SJhlmsm0SwYmeQjYGfBcFZkLDgZ0ucgMUtMvTIJ4Cdzz5ktA38xIZSbpfUzVvKgGvmlMaUQEEAVxKjMXyLi1vB1YvaHr1cySlVPsnKFSnfjwNYSNFpn0j62MNQwJJp8UKr6xTvdqsaow1EmJBn+KqMKM17WWQZnI7PFQBlQtghqeUVAEcgYgZKyAWWMkhZUBBSBvCCgDCgvsGqlioAikA4CyoDSQUnzKAKKQF4QUAaUF1i1UkVAEUgHAWVA6aCkeRQBRSAvCCgDygusWqkioAikg4AyoHRQ0jyKgCKQFwSUAeUFVq1UEVAE0kFAGVA6KGkeRUARyAsCyoDyAqtWqggoAukgoAwoHZQ0jyKgCOQFAWVAeYFVK1UEFIF0EFAGlA5KmkcRUATygoAyoLzAqpUqAopAOggoA0oHJc2jCCgCeUFAGVBeYNVKFQFFIB0ElAGlg5LmUQQUgbwgoAwoL7BqpYqAIpAOAsqA0kFJ8ygCikBeEFAGlBdYtVJFQBFIBwFlQOmgpHkUAUUgLwgoA8oLrFqpIqAIpIPA/wMIXFHsdv8QQwAAAABJRU5ErkJggg==" /><!-- --></p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>usethis<span class="sc">::</span><span class="fu">use_data</span>(soleS)</span></code></pre></div>
+</div>
+</div>
+<div id="publication-metadata" class="section level2">
+<h2>Publication metadata</h2>
+<p>Some sample/cell attributes exist only in the published data,
+specifically subject ID, and age groups. These were extracted and are
+merged to the raw-data.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">suppressPackageStartupMessages</span>(<span class="fu">library</span>(tidyverse))</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>metadata <span class="ot">&lt;-</span> soleS[[]] <span class="sc">%&gt;%</span> </span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(subj, age) <span class="sc">%&gt;%</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rownames_to_column</span>(<span class="at">var =</span> <span class="st">&quot;cell_id&quot;</span>)</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>tmp <span class="ot">&lt;-</span> <span class="fu">merge</span>(pre.fibroS<span class="sc">@</span>meta.data, metadata, </span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>             <span class="at">by.x =</span> <span class="dv">0</span>, <span class="at">by.y =</span> <span class="st">&quot;cell_id&quot;</span>,</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>             <span class="at">all =</span> <span class="cn">TRUE</span>, <span class="at">sort =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="fu">rownames</span>(tmp) <span class="ot">=</span> tmp<span class="sc">$</span>Row.names</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a><span class="do">## check rows in the same order // not in the first merge</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="fu">all</span>(<span class="fu">rownames</span>(tmp) <span class="sc">==</span> <span class="fu">rownames</span>(pre.fibroS<span class="sc">@</span>meta.data))</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] FALSE</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a><span class="do">## all rows in new table tmp are present in pre.fibroS</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a><span class="fu">all</span>(<span class="fu">rownames</span>(tmp) <span class="sc">%in%</span> <span class="fu">rownames</span>(pre.fibroS<span class="sc">@</span>meta.data))</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] TRUE</span></span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a><span class="do">## force re-order tmp object</span></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>tmp <span class="ot">&lt;-</span> tmp[<span class="fu">rownames</span>(pre.fibroS<span class="sc">@</span>meta.data), ] <span class="sc">%&gt;%</span> </span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>Row.names) <span class="do">## removes new row</span></span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a><span class="do">## check rows in the same order // true</span></span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a><span class="fu">all</span>(<span class="fu">rownames</span>(tmp) <span class="sc">==</span> <span class="fu">rownames</span>(pre.fibroS<span class="sc">@</span>meta.data))</span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; [1] TRUE</span></span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a> </span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a><span class="do">## overwrite new object, with identical order as in pre.fibroS, but containing the subject, and age attributes</span></span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a>pre.fibroS<span class="sc">@</span>meta.data <span class="ot">&lt;-</span> tmp</span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a><span class="do">## overwrite</span></span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a>usethis<span class="sc">::</span><span class="fu">use_data</span>(pre.fibroS, <span class="at">overwrite =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; ✔ Setting active project to &#39;/Users/gularter/mskcc/dev/rnaseq_training&#39;</span></span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; ✔ Saving &#39;pre.fibroS&#39; to &#39;data/pre.fibroS.rda&#39;</span></span>
+<span id="cb15-33"><a href="#cb15-33" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; • Document your data (see &#39;https://r-pkgs.org/data.html&#39;)</span></span></code></pre></div>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
