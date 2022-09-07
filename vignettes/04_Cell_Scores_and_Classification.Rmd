@@ -20,6 +20,89 @@ devtools::load_all()
 data(fibroS)
 ```
 
-```{r}
+## Figure 1A
+```{r fibroUMAP}
+fsUMAP <- fibroS %>% DimPlot()
+fsUMAP
+```
 
+## Figure 1B
+```{r heatmap_genes}
+genes.heatmap <- c("IL8", "LYZ", "SLPI", "FBLN1", "APOD", "CCL19", "APCDD1", "LEPR", "SELE", "TM4SF1", "KRTDAP", "KRT1", "CD52", "IL32", "KRT14", "S100A2", "TAGLN", "ACTA2", "ASPN", "COL1A1", "RGS5", "RGS16", "HBA2", "HBB", "CCL21", "TFF", "HLA-DPA1", "HLA-DPB1", "DCT", "TYRP1", "HIST1H4C", "KRT14", "STMN1", "HMGB2")
+
+fsHeat <- DoHeatmap(fibroS, features = genes.heatmap, group.by = "seurat_clusters") + 
+  NoLegend()
+
+fsHeat
+```
+
+## Figure 1C
+```{r cell_scores_}
+sole.cell.scores <- list(
+  macroDC = c("LYZ", "AIF1", "HLA-DRA", "CD68", "ITGAX"),
+  tcells = c("CD3D", "CD3G", "CD3E", "LCK"),
+  vascularEC = c("SELE", "CLDN5", "VWF", "CDH5"),
+  lymphaticEC = c("CLDN5", "LYVE1", "PROXY"),
+  pericytes = c("ACTA2", "RGS5", "PDGFRB"),
+  erythrocytes = c("HBA1", "HBA2", "HBB"),
+  melanocyte = c("PMEL", "MLANA", "TYRP1", "DCT"),
+  keratinocyteUndiff = c("KRT5", "KRT14", "TP63", "ITGB1", "ITGA6"),
+  keratinocyteDIFF = c("KRT1", "KRT10", "SBSN", "KRTDAP"),
+  fibroblasts = c("LUM", "DCN", "VIM", "PDGFRA", "COL1A2")
+)
+
+fibroS <- fibroS %>% 
+  AddModuleScore(features = sole.cell.scores, seed = 24)
+
+names(fibroS@meta.data)[grep("Cluster", names(fibroS@meta.data))] <- names(sole.cell.scores)
+
+fsCells <- FeaturePlot(fibroS, features = names(sole.cell.scores), order = TRUE, min.cutoff = 0, 
+             label = TRUE, repel = TRUE, ncol = 5)
+
+for(i in 1:length(sole.cell.scores)) {
+  fsCells[[i]] <- fsCells[[i]] + 
+    theme_light() + 
+    scale_color_viridis_b() +
+    NoLegend() + 
+    theme(axis.title.x = element_blank(),
+          axis.title.y = element_blank())
+}
+
+fsCells
+```
+
+```{r sole_check}
+data(soleS)
+
+soleUMAP <- soleS %>%
+  DimPlot(group.by = "integrated_snn_res.0.4") + NoLegend()
+
+soleS <- soleS %>% ScaleData()
+
+soleHeat <- soleS %>%
+  DoHeatmap(features = genes.heatmap)
+
+
+soleS <- soleS %>%
+  AddModuleScore(features = sole.cell.scores, seed = 24)
+names(soleS@meta.data)[grep("Cluster", names(soleS@meta.data))] <- names(sole.cell.scores)
+
+soleFeat <- soleS %>%
+  FeaturePlot(features = names(sole.cell.scores), order = TRUE, min.cutoff = 0, 
+              label = TRUE, repel = TRUE, ncol = 5)
+
+for(i in 1:length(sole.cell.scores)) {
+  soleFeat[[i]] <- soleFeat[[i]] + 
+    theme_light() + 
+    NoLegend() + 
+    theme(axis.title.x = element_blank(), 
+          axis.title.y = element_blank()) + 
+    scale_color_viridis_b()
+}
+```
+
+## Solé et al. Figure 1.
+```{}
+(soleUMAP + soleHeat + plot_layouts(width = c(1, 2))) / soleFeat ) + 
+  plot_layouts(guides = "collect")
 ```
