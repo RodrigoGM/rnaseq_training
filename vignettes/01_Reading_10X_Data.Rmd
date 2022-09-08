@@ -55,9 +55,11 @@ Matrix::readMM("data-raw/filtered_feature_bc_matrix/matrix.mtx.gz")[1:10, 1:10]
 
 1. first load the libraries
 ```{r setup}
-library(Seurat)
-## load custom fuctions, if any
-devtools::load_all()
+suppressPackageStartupMessages({
+    library(Seurat)
+    ## load custom fuctions, if any
+    devtools::load_all()
+})
 ```
 
 2. read in the filtered matrix.  Usually it's best to load the `filtered_feature_bc_matrix` as these have been pre-filtered by `cellranger` to contain the subset of droplets most likely to be cells.  If the number of cells does not match the expected number, one can re-analyze the `raw_feature_bc_matrix` to adjust the number of droplets, among other analyses.
@@ -91,7 +93,9 @@ pre.fibroS
 ## Read-in 10X data with Monocle3
 1. Load the monocle3 library
 ```{r step_1_monocle}
-library(monocle3)
+suppressPackageStartupMessages({
+    library(monocle3)
+})
 ```
 2. Read in matrix as before, however, monocle3 will directly create a `cell_data_set` or `cds` for short in one step; albeit two options on how to do this exist depending on the starting point of the data.
 
@@ -173,7 +177,9 @@ usethis::use_data(soleS)
 Some sample/cell attributes exist only in the published data, specifically subject ID, and age groups.  These were extracted and are merged to the raw-data.
 
 ```{r metadata_handling}
-suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages({
+    library(tidyverse)
+})
 metadata <- soleS[[]] %>% 
   select(subj, age) %>%
   rownames_to_column(var = "cell_id")

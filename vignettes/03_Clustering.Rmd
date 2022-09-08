@@ -12,10 +12,12 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Setup
 ```{r libraries}
-library(Seurat)
-library(tidyverse)
-library(patchwork)
-devtools::load_all()
+suppressPackageStartupMessages({
+    library(Seurat)
+    library(tidyverse)
+    library(patchwork)
+    devtools::load_all()
+})
 ```
 
 ## load curated data

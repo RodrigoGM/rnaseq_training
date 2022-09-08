@@ -23,9 +23,11 @@ The objective of the data cleaning and quality control is primarily to remove te
 
 We start off by loading a previously created object using, and the published data set using the function `data`
 ```{r setup, eval = TRUE}
-library(Seurat)
-library(tidyverse)
-devtools::load_all()
+suppressPackageStartupMessages({
+    library(Seurat)
+    library(tidyverse)
+    devtools::load_all()
+})
 
 ## load data
 data(pre.fibroS, soleS)

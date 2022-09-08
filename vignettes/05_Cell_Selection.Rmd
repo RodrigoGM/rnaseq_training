@@ -1,0 +1,31 @@
+---
+title: "05_Cell_Selection"
+author: "Rodrigo Gularte Mérida"
+date: "9/7/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r libraries}
+suppressPackageStartupMessages({
+    library(Seurat)
+    library(SeuratWrappers)
+    library(monocle3)
+    library(patchwork)
+    library(tidyverse)
+    devtools::load_all()
+})
+```
+
+```{r load_data}
+data(fibroS)
+
+```
+
+```{r convert_to_monocle}
+
+```

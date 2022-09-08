@@ -10,10 +10,13 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r libraries}
-library(Seurat)
-library(SeuratWrappers)
-library(patchwork)
-devtools::load_all()
+suppressPackageStartupMessages({
+    library(Seurat)
+    library(SeuratWrappers)
+    library(patchwork)
+    library(tidyverse)
+    devtools::load_all()
+})
 ```
 
 ```{r}
@@ -22,12 +25,13 @@ data(fibroS)
 
 ## Figure 1A
 ```{r fibroUMAP}
-fsUMAP <- fibroS %>% DimPlot()
+fsUMAP <- fibroS %>% DimPlot(label = TRUE) + 
+  NoLegend()
 fsUMAP
 ```
 
 ## Figure 1B
-```{r heatmap_genes}
+```{r heatmap_genes, fig.with = 10}
 genes.heatmap <- c("IL8", "LYZ", "SLPI", "FBLN1", "APOD", "CCL19", "APCDD1", "LEPR", "SELE", "TM4SF1", "KRTDAP", "KRT1", "CD52", "IL32", "KRT14", "S100A2", "TAGLN", "ACTA2", "ASPN", "COL1A1", "RGS5", "RGS16", "HBA2", "HBB", "CCL21", "TFF", "HLA-DPA1", "HLA-DPB1", "DCT", "TYRP1", "HIST1H4C", "KRT14", "STMN1", "HMGB2")
 
 fsHeat <- DoHeatmap(fibroS, features = genes.heatmap, group.by = "seurat_clusters") + 
@@ -37,7 +41,7 @@ fsHeat
 ```
 
 ## Figure 1C
-```{r cell_scores_}
+```{r cell_scores, fig.width=10}
 sole.cell.scores <- list(
   macroDC = c("LYZ", "AIF1", "HLA-DRA", "CD68", "ITGAX"),
   tcells = c("CD3D", "CD3G", "CD3E", "LCK"),
@@ -74,21 +78,26 @@ fsCells
 ```{r sole_check}
 data(soleS)
 
+soleS <- SetIdent(soleS, value = "integrated_snn_res.0.4")
+
 soleUMAP <- soleS %>%
-  DimPlot(group.by = "integrated_snn_res.0.4") + NoLegend()
+  DimPlot(group.by = "integrated_snn_res.0.4") + 
+  NoLegend()
 
 soleS <- soleS %>% ScaleData()
 
 soleHeat <- soleS %>%
-  DoHeatmap(features = genes.heatmap)
-
+  DoHeatmap(features = genes.heatmap, 
+            group.by = "integrated_snn_res.0.4") +
+  NoLegend()
 
 soleS <- soleS %>%
   AddModuleScore(features = sole.cell.scores, seed = 24)
 names(soleS@meta.data)[grep("Cluster", names(soleS@meta.data))] <- names(sole.cell.scores)
 
 soleFeat <- soleS %>%
-  FeaturePlot(features = names(sole.cell.scores), order = TRUE, min.cutoff = 0, 
+  FeaturePlot(features = names(sole.cell.scores), 
+              order = TRUE, min.cutoff = 0, 
               label = TRUE, repel = TRUE, ncol = 5)
 
 for(i in 1:length(sole.cell.scores)) {
@@ -102,7 +111,19 @@ for(i in 1:length(sole.cell.scores)) {
 ```
 
 ## Solé et al. Figure 1.
-```{}
-(soleUMAP + soleHeat + plot_layouts(width = c(1, 2))) / soleFeat ) + 
-  plot_layouts(guides = "collect")
+```{r figure1, fig.with = 10, fig.height= 8}
+(soleUMAP + soleHeat + plot_layout(width = c(1, 3))) / soleFeat + 
+  plot_layout(heights = c(2, 4), guides = "collect")
+```
+
+## Our Figure 1.
+```{r figure1_ours, fig.with = 10, fig.height= 8}
+(fsUMAP + fsHeat + plot_layout(width = c(1, 3))) / fsCells + 
+  plot_layout(heights = c(2, 4), guides = "collect")
+```
+
+## Save objects
+*do only if necessary* 
+```{r, eval = FALSE}
+usethis::use_data(fibroS, soleS, overwrite = TRUE)
 ```
